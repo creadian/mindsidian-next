@@ -52,12 +52,29 @@ export class MindmapView extends TextFileView {
   private lastEmittedText: string | null = null;
   /** Zoom % in effect right after load; the close-time write compares to it. */
   private initialZoomPct = 100;
+  /** True while committed edits are waiting on the debounced save. */
+  private savePending = false;
 
   constructor(leaf: WorkspaceLeaf, plugin: MindsidianNextPlugin) {
     super(leaf);
     this.plugin = plugin;
     this.modelSettings = toModelSettings(plugin.settings);
     this.navigation = true;
+  }
+
+  onload(): void {
+    super.onload();
+    // The debounced save leaves a ~2s window in which edits exist only in
+    // memory. Flush it whenever this window loses focus or is hidden, so
+    // sync / another app sees the freshest bytes and the window in which
+    // an external writer can race us stays as small as possible.
+    const flush = () => {
+      if (this.savePending && !this.saveBlocked) void this.save();
+    };
+    this.registerDomEvent(window, "blur", flush);
+    this.registerDomEvent(document, "visibilitychange", () => {
+      if (document.hidden) flush();
+    });
   }
 
   getViewType(): string {
@@ -103,6 +120,21 @@ export class MindmapView extends TextFileView {
   setViewData(data: string, clear: boolean): void {
     this.data = data;
     if (!clear && this.controller && data === this.lastEmittedText) return;
+    // External change (sync, another app, a second view on this file):
+    // the disk is the source of truth, so we rebuild from it — but if
+    // edits were still waiting on the debounced save (or an inline edit
+    // was open), they are lost in the reload. Never silently: say so.
+    if (
+      !clear &&
+      this.controller &&
+      (this.savePending || this.controller.editor.isEditing)
+    ) {
+      new Notice(
+        "Mindsidian Next: this file was changed outside this view — " +
+          "reloaded from disk; your last few seconds of edits were discarded."
+      );
+    }
+    this.savePending = false;
     this.rebuild(data);
   }
 
@@ -142,6 +174,7 @@ export class MindmapView extends TextFileView {
     this.lastEmittedText = text;
     this.data = text;
     doc.originalText = text;
+    this.savePending = false; // in-memory state is on disk again
     return text;
   }
 
@@ -150,6 +183,7 @@ export class MindmapView extends TextFileView {
     this.teardown();
     this.saveBlocked = false;
     this.lastEmittedText = null;
+    this.savePending = false;
     this.data = "";
   }
 
@@ -278,7 +312,10 @@ export class MindmapView extends TextFileView {
     // (a fold toggle in non-markdown mode must not touch the file).
     if (this.saveBlocked) return;
     const text = serializeDocument(controller.doc, this.modelSettings);
-    if (text !== this.data) this.requestSave();
+    if (text !== this.data) {
+      this.savePending = true;
+      this.requestSave();
+    }
   }
 
   // ------------------------------------------------------------ error panel
