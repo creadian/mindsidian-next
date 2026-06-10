@@ -210,6 +210,18 @@ export function parseBody(
 
   let root: MindNode | null = null;
   let synthesizedRoot = false;
+  // Every id in the tree, including generated ones. A fold id that was
+  // already seen (a duplicated line/section in the markdown editor) gets a
+  // FRESH id — duplicate ids would collide in the id -> node index and let
+  // commands delete or move the wrong node. Collapsed state is kept; the
+  // marker simply re-emits with the new id (text-lossless).
+  const seenIds = new Set<string>();
+  const claimId = (foldId: string | null): string | undefined =>
+    foldId !== null && !seenIds.has(foldId) ? foldId : undefined;
+  const remember = (node: MindNode): MindNode => {
+    seenIds.add(node.id);
+    return node;
+  };
   // Heading stack: [node, effective hash level]; the root counts as level 1.
   let headingStack: Array<{ node: MindNode; hashLevel: number }> = [];
   // bulletStack[d] = most recent bullet node at clamped depth d.
@@ -217,7 +229,7 @@ export function parseBody(
 
   const ensureRoot = (): MindNode => {
     if (!root) {
-      root = createNode(fallbackRootText);
+      root = remember(createNode(fallbackRootText));
       synthesizedRoot = true;
       headingStack = [{ node: root, hashLevel: 1 }];
     }
@@ -237,10 +249,9 @@ export function parseBody(
   for (const token of tokens) {
     if (token.kind === "heading") {
       const { text, foldId } = extractHeadingFields(token.text);
-      const node = createNode(text, {
-        id: foldId ?? undefined,
-        collapsed: foldId !== null,
-      });
+      const node = remember(
+        createNode(text, { id: claimId(foldId), collapsed: foldId !== null })
+      );
       if (!root && token.hashLevel === 1) {
         root = node;
         headingStack = [{ node, hashLevel: 1 }];
@@ -264,11 +275,9 @@ export function parseBody(
     if (token.kind === "bullet") {
       ensureRoot();
       const { text, task, foldId } = extractBulletFields(token.text);
-      const node = createNode(text, {
-        id: foldId ?? undefined,
-        task,
-        collapsed: foldId !== null,
-      });
+      const node = remember(
+        createNode(text, { id: claimId(foldId), task, collapsed: foldId !== null })
+      );
       attach(bulletParent(token.depth), node);
       bulletStack[token.depth] = node;
       bulletStack.length = token.depth + 1;
@@ -299,14 +308,20 @@ export function parseBody(
       const indent = "\t".repeat(token.depth);
       prev.text = lines.map((l) => dedentFenceLine(l, indent)).join("\n");
       if (foldId) {
-        prev.id = foldId;
-        prev.collapsed = true;
+        const claimed = claimId(foldId);
+        if (claimed) {
+          prev.id = claimed;
+          seenIds.add(claimed);
+        }
+        prev.collapsed = true; // duplicate id: keep the generated one
       }
     } else {
       const text = lines
         .map((l) => (token.ownIndent && l.startsWith(token.ownIndent) ? l.slice(token.ownIndent.length) : l))
         .join("\n");
-      const node = createNode(text, { id: foldId ?? undefined, collapsed: foldId !== null });
+      const node = remember(
+        createNode(text, { id: claimId(foldId), collapsed: foldId !== null })
+      );
       attach(bulletParent(token.depth), node);
       bulletStack[token.depth] = node;
       bulletStack.length = token.depth + 1;
@@ -314,7 +329,7 @@ export function parseBody(
   }
 
   if (!root) {
-    root = createNode(fallbackRootText);
+    root = remember(createNode(fallbackRootText));
     synthesizedRoot = true;
   }
   return { root, synthesizedRoot };

@@ -478,3 +478,23 @@ test("a real H1 after a closed fence is still found as the root", () => {
   const doc = parsed(input, "x");
   assert.equal(doc.root.text, "Real Root");
 });
+
+// ---- Duplicate fold ids never collide in the id → node index ----
+
+test("duplicate fold ids get a fresh id; collapsed state is kept", () => {
+  const input =
+    "# R\n\n## A ^aaaaaaaa-bbbb-cccc\n- a1\n\n## B ^aaaaaaaa-bbbb-cccc\n- b1";
+  const doc = parsed(input, "R");
+  const [a, b] = doc.root.children;
+  assert.equal(a.id, "aaaaaaaa-bbbb-cccc");
+  assert.notEqual(b.id, "aaaaaaaa-bbbb-cccc", "second use must be re-id'd");
+  assert.equal(b.collapsed, true, "collapsed state survives the re-id");
+  // No two nodes anywhere share an id.
+  const ids: string[] = [];
+  walk(doc.root, (n) => ids.push(n.id));
+  assert.equal(new Set(ids).size, ids.length);
+  // Text-lossless and idempotent: the duplicate re-emits with the new id.
+  const pass1 = serializeDocument(doc);
+  assert.match(pass1, /## B \^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}/);
+  assert.equal(roundtrip(pass1, "R"), pass1);
+});
