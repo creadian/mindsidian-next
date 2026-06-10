@@ -115,9 +115,11 @@ export class MindmapView extends TextFileView {
     if (this.saveBlocked || !this.controller) return this.data;
     const doc = this.controller.doc;
 
-    // Open-then-close without an edit writes nothing new (contract E12/T7):
-    // requestSave is never called, and even a forced save echoes the input.
-    if (doc.synthesizedRoot && !this.controller.hasEdits) return doc.originalText;
+    // Open-then-close without an edit writes nothing new (contract E12/T7)
+    // — for EVERY file, not just synthesized roots. Obsidian can force a
+    // save outside requestSave (Ctrl+S, save-on-close); without this
+    // guard, that would normalize a legacy file the user never touched.
+    if (!this.controller.hasEdits) return this.data;
 
     // First real save of a synthesized root: add the default frontmatter
     // exactly once (contract T7 — frontmatter is the view's job).
