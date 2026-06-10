@@ -53,9 +53,17 @@ export function splitRegions(text: string): RegionSplit {
   const lines = text.slice(fmEnd).split("\n");
   let offset = fmEnd;
   let h1Start = -1;
+  // Track code-fence state exactly like the body lexer does: a line whose
+  // trimmed text starts with ``` opens a fence, the next such line closes
+  // it. A "# " line INSIDE a fence is code, never the root heading —
+  // without this, opening a regular note as a mindmap could tear a fence
+  // apart and rewrite the file around a bogus root.
+  let inFence = false;
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].replace(/\r$/, "").trim();
-    if (/^#[ \t]/.test(trimmed)) {
+    if (trimmed.startsWith("```")) {
+      inFence = !inFence;
+    } else if (!inFence && /^#[ \t]/.test(trimmed)) {
       h1Start = offset;
       break;
     }

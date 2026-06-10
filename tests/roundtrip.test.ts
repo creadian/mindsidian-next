@@ -446,3 +446,35 @@ test("text starting with ``` but not one pure fence is split as bullets", () => 
     assert.ok(texts.includes(piece), `line "${piece}" must survive`);
   }
 });
+
+// ---- splitRegions is code-fence-aware ----
+
+test("a '# ' line inside a code fence is never taken as the root H1", () => {
+  const input =
+    "---\nmindmap-plugin: basic\n---\n```bash\n# install deps\nnpm i\n```\n- real content\n- more content\n";
+  const { prefix, body } = splitRegions(input);
+  // No real H1 → the whole remainder is body; the fence stays intact.
+  assert.equal(prefix, "---\nmindmap-plugin: basic\n---\n");
+  assert.equal(body.startsWith("```bash"), true);
+  const doc = parsed(input, "My Note");
+  assert.equal(doc.synthesizedRoot, true);
+  assert.equal(doc.root.text, "My Note");
+  assert.deepEqual(flatTexts(doc.root), [
+    "My Note",
+    "```bash\n# install deps\nnpm i\n```",
+    "real content",
+    "more content",
+  ]);
+  // A forced save of this doc must pass the self-check (idempotent).
+  const pass1 = serializeDocument(doc);
+  assert.equal(roundtrip(pass1, "My Note"), pass1);
+});
+
+test("a real H1 after a closed fence is still found as the root", () => {
+  const input = "```txt\n# fake\n```\n\n# Real Root\n- a\n";
+  const { prefix, body } = splitRegions(input);
+  assert.equal(prefix, "```txt\n# fake\n```\n\n");
+  assert.equal(body, "# Real Root\n- a\n");
+  const doc = parsed(input, "x");
+  assert.equal(doc.root.text, "Real Root");
+});
