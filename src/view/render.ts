@@ -138,6 +138,18 @@ export class MindmapRenderer {
     return this.views.get(id)?.el;
   }
 
+  /** The content element of a node (Stage C inline editing target). */
+  getContentElement(id: string): HTMLElement | undefined {
+    return this.views.get(id)?.contentEl;
+  }
+
+  /** Forget the cached rendered text of a node so the next render rebuilds
+   *  its DOM — used after inline editing replaced the content in place. */
+  invalidateNode(id: string): void {
+    const view = this.views.get(id);
+    if (view) view.renderedText = null;
+  }
+
   /**
    * Full render pass: sync node DOM to the tree, wait for any markdown
    * renders, then measure → layout → position → edges. Resolves when the

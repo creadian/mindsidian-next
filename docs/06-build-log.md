@@ -89,3 +89,63 @@ truth; node state classes already styled: `is-selected`, `is-multi-selected`, `i
 `is-drop-target`, `is-dragging`, plus `.mm-marquee` and the focus-mode/dim hooks. The fold dot
 (`.mm-fold-dot`) and task box (`.mm-task`) render but have no handlers yet. Re-render after any
 tree mutation = `await renderer.render(root)` (full relayout by design).
+
+## Stage C-interact — 2026-06-10
+
+**Built:** `src/view/controller.ts` (the per-view state object from design §2: tree ctx + history +
+selection + editor + renderer + viewport meet here; every user action is one controller method →
+one undoable command → re-render → onTreeChanged), `src/view/selection.ts` (single/multi state +
+prune-to-top-ancestors, root never multi-selectable), `src/view/edit.ts` (contenteditable
+plaintext-only inline editor, synchronous begin/commit, IME composition guard, range-aware format
+toggles, CSS-only empty placeholder — never saved, B5), `src/view/clipboard.ts` (pure v1-format
+codec: copyNode/copyNodes), `src/input/pointer.ts` (Pointer Events only — one path for mouse/touch/
+pen: tap/shift-click select, manual double-click/double-tap detectors, mouse-drag + long-press
+ghost drag-to-reparent with drop highlight/arrow/edge auto-pan and commit-to-LAST-SHOWN target,
+empty-space pan, hold-still-1s marquee in world coords, fold-dot + task taps, wikilink clicks,
+backs off when a second touch lands so viewport.ts pinches), `src/input/keyboard.ts` (one keydown
+listener on the container; Enter/Tab/Shift-Tab, delete, Escape ladder, undo/redo, zoom, fold +
+displayed-level keys, Alt+Shift move keys, clipboard, format), `src/input/navigate.ts` (pure
+spatial arrow navigation — never pans the viewport, B2), `src/ui/palette.ts` (v1's 6 swatches + ×),
+`src/ui/mobileBar.ts`, `src/ui/wikilink.ts` (picker interface stub for Stage D + pure helpers).
+Renderer gained `getContentElement()` + `invalidateNode()` (editor clobbers node DOM in place).
+Dev harness now hosts the full interaction stack — still read-only: every mutation runs an
+in-memory serialize→reparse→serialize fixed-point spot-check and only logs.
+Tests: `tests/{navigate,clipboard,selection}.test.ts` (19 new; 90 total).
+
+**Acceptance:** `npm run build` clean; `npm test` → tests 90 / pass 90 / fail 0.
+
+**Deviations / interpretations:**
+
+1. **`src/view/controller.ts` added** (not in the §1 file table): design §2 mandates "one per-view
+   state object" — this is it. pointer/keyboard/ui modules stay thin and DOM-only.
+2. **Spatial nav extracted to `src/input/navigate.ts`** so it is pure and unit-testable
+   (acceptance: "spatial-nav logic covered by unit tests where pure").
+3. **Edit commit flattens newlines to spaces** in every node. Covers Stage A's rule (no newlines
+   in heading nodes) with one safe policy; multi-line node *creation* via the editor is out, the
+   add/remove `<br>` commands were already DEFERRED. Multi-line nodes from disk still roundtrip.
+4. **Empty root title prevented at commit** (Stage A known one-way input): an emptied root keeps
+   its previous title.
+5. **Tab while editing commits only** (v1 parity); **Shift+Tab = promote/outdent** (new, no v1
+   equivalent). In-view hotkeys are plain Mod+B/I/H, Mod+Z/Y, Mod+C/X/V etc.; the Alt+Shift v1
+   bindings arrive with the Stage D command table (clipboard already answers both).
+6. **Clipboard:** v2 writes an extra optional `taskState` per entry (v1 ignores it; v1 payloads
+   decode fine without it — task state is lost there exactly as in v1). After paste the clipboard
+   is re-written with a fresh-id payload so paste repeats (v1 cleared it to "").
+7. **Drop kinds simplified to before/after/child** via vertical thirds of the target box (v1 had
+   quadrant + direction variants). The shown target is sticky over empty space so the commit
+   always matches the last indicator the user saw.
+8. **Mobile bar keyboard tracking** uses visualViewport resize/scroll events (no 250 ms poller,
+   no 270/413/×2 constants); events are naturally silent while the view is hidden.
+9. **Join-with-below / join-as-citation moved to DEFERRED** (spec §5 allowed this explicitly).
+10. **Listeners** are plain addEventListener with `destroy()` (same as Stage B); Stage D must
+    route them through `registerDomEvent` and re-resolve `ownerDocument` for popouts.
+
+**For the next stage (D):** construct per file-open: `MindmapRenderer` + `Viewport` +
+`MindmapController` (callbacks: onTreeChanged→requestSave, notify→Notice, openLink→openLinkText) +
+`PointerController` + `KeyboardController` + `HighlightPalette` (+ `MobileActionBar` when
+Platform.isMobile) — copy the wiring in devharness.ts before deleting it. `getViewData()` =
+`prefix + serializeBody(root) + suffix` with the refuse-to-corrupt guard (use serialize-idempotence
+per Stage A note; the harness's spotCheckSerialization shows the exact check).
+`controller.hasEdits` gates synthesized-root first writes (T7/E12). Wire `src/ui/wikilink.ts`'s
+`WikilinkPicker` with a FuzzySuggestModal. Mod-key zoom/fold hotkeys may collide with Obsidian
+defaults — resolve in the Stage D command table review.
