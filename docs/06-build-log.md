@@ -47,3 +47,45 @@ lines preserved verbatim); T24 fuzz holds the fixed point for 500 random trees (
 **For the next stage (B):** import only from `src/model/`; the parse entry point is
 `parseDocument(text, basename)` and the save path is `serializeDocument(doc, settings)`.
 `MindDocument.synthesizedRoot === true` means "do not write to disk until the user edits" (T7/E12).
+
+## Stage B-render — 2026-06-10
+
+**Built:** `src/view/layout.ts` (pure layout: right/left/centered, fold-aware, branch indices,
+bounds, `edgeAnchors` helper), `src/view/render.ts` (`MindmapRenderer`: keyed node DOM lifecycle,
+plain-text fast path, injected async markdown renderer, two-pass measure→layout→position,
+ResizeObserver re-measure, rAF-batched re-render), `src/view/edges.ts` (`EdgeLayer`: one SVG,
+keyed paths, branch-colored beziers), `src/view/viewport.ts` (`Viewport`: sole transform writer,
+wheel pan + Ctrl/Cmd-wheel cursor-anchored zoom, touch pinch with focal point computed once per
+gesture, 20–300% clamp, animated recenter/fit), `src/view/devharness.ts` (read-only ItemView
+shell — deleted in Stage D), full `styles.css` (theme variables only), `tests/layout.test.ts`
+(15 tests incl. 1000-node perf budget + layout purity grep). `src/main.ts` now registers only
+the dev-harness view + command (placeholder hello command removed).
+
+**Acceptance:** `npm run build` clean; `npm test` 71/71 green (Stage A's 56 + 15 layout tests).
+Renderer/viewport/edges verified by typecheck + build per design §6 ("only Stage A's pure model
+is unit-tested; UI stages are verified by checklist in the test vault").
+
+**Deviations / interpretations:**
+
+1. **render.ts stays obsidian-free:** the markdown renderer is injected
+   (`MarkdownRenderFn`) instead of importing `MarkdownRenderer` directly; the dev harness /
+   Stage D view pass `MarkdownRenderer.render`. Strengthens testability, changes no behavior.
+2. **Ready state:** `MindmapRenderer.render()` awaits its own `Promise.all` of pending markdown
+   renders and resolves when positions are written — no separate `whenReady` surface needed.
+3. **Viewport listeners** use plain `addEventListener` with a `destroy()`; Stage D must route
+   registration through `registerDomEvent` (and `ownerDocument` for popouts) when the real
+   view owns the lifecycle. Mouse drag-pan is deliberately absent (Stage C pointer.ts).
+4. **Inverse-scaled fold tap target** is CSS `calc(-12px / var(--mm-scale))`; viewport.ts writes
+   `--mm-scale` on the world element alongside the transform (single writer preserved).
+5. **Default branch palette** is a 10-color list in render.ts, not v1's 20-color curated array;
+   the Stage D settings (strokeArray) override it per user.
+6. **`data-depth` is capped at 6** for CSS purposes; layout depth itself is unlimited.
+7. **Detached/zero-size measurements** (`offsetWidth === 0`) are treated as "unknown" and fall
+   back to a default box in layout, so a hidden container never collapses the map to (0,0).
+
+**For the next stage (C):** `MindmapRenderer.getElement(id)/getSize(id)/getLayout()` exist for
+hit-testing and centering; `Viewport.screenToWorld()` is the marquee/world-coordinate source of
+truth; node state classes already styled: `is-selected`, `is-multi-selected`, `is-editing`,
+`is-drop-target`, `is-dragging`, plus `.mm-marquee` and the focus-mode/dim hooks. The fold dot
+(`.mm-fold-dot`) and task box (`.mm-task`) render but have no handlers yet. Re-render after any
+tree mutation = `await renderer.render(root)` (full relayout by design).

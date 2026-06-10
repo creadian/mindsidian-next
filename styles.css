@@ -1,2 +1,295 @@
-/* Mindsidian Next (v2 prototype) — all styling lives here, never in JS.
-   Filled in during STAGE B. Uses Obsidian CSS variables for theme compliance. */
+/* Mindsidian Next (v2 prototype) — ALL styling lives here, never in JS
+   (design §1 Stage B). Colors and fonts come from Obsidian CSS variables so
+   every theme (light/dark/custom) works without plugin code. */
+
+/* ---------------------------------------------------------------------- */
+/* Container + world (pan/zoom)                                           */
+/* ---------------------------------------------------------------------- */
+
+/* The fixed viewport. The world inside it carries the single
+   translate()+scale() transform written by viewport.ts. */
+.mm-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  /* All gestures are handled by the plugin (wheel, pinch, drag). */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  background: var(--mm-canvas-background, var(--background-primary));
+  cursor: grab;
+}
+
+/* Zero-sized origin element; nodes/edges are placed in world coordinates. */
+.mm-world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Edge layer (one SVG under the nodes)                                   */
+/* ---------------------------------------------------------------------- */
+
+.mm-edges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.mm-edge {
+  fill: none;
+  stroke: var(--mm-branch-color, var(--interactive-accent));
+  stroke-width: 2px;
+  stroke-linecap: round;
+  opacity: 0.9;
+}
+
+/* Edges leaving the root are drawn thicker (v1 look). */
+.mm-edge-root {
+  stroke-width: 3.5px;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Nodes                                                                  */
+/* ---------------------------------------------------------------------- */
+
+.mm-node {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: var(--mm-node-max-width, 800px);
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: var(--text-normal);
+  font-size: var(--font-text-size, 16px);
+  line-height: 1.35;
+  /* Skip rendering work for far-offscreen nodes (B3 performance fix). */
+  content-visibility: auto;
+  cursor: default;
+}
+
+/* Root node: filled accent pill, larger text. */
+.mm-node[data-depth="0"] {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: 1.3em;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 10px;
+}
+
+/* First level: outlined box in the branch color. */
+.mm-node[data-depth="1"] {
+  background: var(--background-primary);
+  border: 2px solid var(--mm-branch-color, var(--interactive-accent));
+  font-weight: 500;
+}
+
+/* Deeper levels: light text on the canvas with a branch-colored underline
+   (the connector's "shelf" — matches the v1 mindmap look). */
+.mm-node:not([data-depth="0"]):not([data-depth="1"]) {
+  background: transparent;
+  border-bottom: 2px solid var(--mm-branch-color, var(--interactive-accent));
+  border-radius: 0;
+  padding: 2px 6px 3px;
+}
+
+/* Markdown output normalization inside nodes: a node is one line of text,
+   so strip the paragraph margins MarkdownRenderer adds. */
+.mm-node-content {
+  min-width: 1em;
+  min-height: 1em;
+  overflow-wrap: anywhere;
+}
+.mm-node-content p {
+  margin: 0;
+}
+.mm-node-content ul,
+.mm-node-content ol {
+  margin: 0;
+  padding-inline-start: 1.2em;
+}
+.mm-node-content img {
+  max-width: 100%;
+  display: block;
+}
+.mm-node-content code {
+  font-family: var(--font-monospace);
+  font-size: 0.9em;
+}
+.mm-node-content pre {
+  margin: 0;
+  text-align: left;
+  white-space: pre;
+}
+
+/* Default ==highlight== uses the theme highlight color; colored highlights
+   carry their own inline <mark style> from the file text. */
+.mm-node-content mark {
+  background: var(--text-highlight-bg);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* Wikilinks keep Obsidian's link look. */
+.mm-node-content a.internal-link {
+  color: var(--link-color);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Task checkbox (render-only in Stage B; Stage C wires the tap)          */
+/* ---------------------------------------------------------------------- */
+
+.mm-task {
+  flex: 0 0 auto;
+  width: 1em;
+  height: 1em;
+  margin-top: 0.2em;
+  border: 1.5px solid var(--checkbox-border-color, var(--text-muted));
+  border-radius: var(--checkbox-radius, 3px);
+  font-size: 0.85em;
+  line-height: 1em;
+  text-align: center;
+  color: var(--text-on-accent);
+  cursor: pointer;
+}
+
+.mm-task[data-state="done"] {
+  background: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+}
+
+/* Done tasks mute the node text. */
+.mm-node:has(.mm-task[data-state="done"]) .mm-node-content {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Fold dot                                                               */
+/* ---------------------------------------------------------------------- */
+
+.mm-fold-dot {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 10px;
+  height: 10px;
+  padding: 0 2px;
+  border-radius: 7px;
+  background: var(--mm-branch-color, var(--interactive-accent));
+  color: var(--text-on-accent);
+  font-size: 9px;
+  line-height: 10px;
+  text-align: center;
+  cursor: pointer;
+  z-index: 2;
+}
+
+/* The dot sits just past the node on the side its children grow toward. */
+.mm-node[data-side="right"] .mm-fold-dot {
+  right: -16px;
+}
+.mm-node[data-side="left"] .mm-fold-dot {
+  left: -16px;
+}
+
+/* Generous invisible tap target around the small visual dot,
+   inverse-scaled so it stays finger-sized at any zoom level
+   (--mm-scale is written by viewport.ts on every transform change). */
+.mm-fold-dot::after {
+  content: "";
+  position: absolute;
+  inset: calc(-12px / var(--mm-scale, 1));
+}
+
+/* Collapsed: hollow ring → filled badge showing the hidden-node count. */
+.mm-node.is-collapsed .mm-fold-dot {
+  min-width: 16px;
+  height: 16px;
+  border-radius: 9px;
+  line-height: 16px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Node states (selection/editing/drag — wired by Stage C)                */
+/* ---------------------------------------------------------------------- */
+
+.mm-node.is-selected {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+.mm-node.is-multi-selected {
+  outline: 2px dashed var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+.mm-node.is-editing {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.mm-node.is-drop-target {
+  outline: 2px solid var(--color-green, #44cf6e);
+  outline-offset: 2px;
+}
+
+.mm-node.is-dragging {
+  opacity: 0.5;
+}
+
+/* Marquee selection rectangle (Stage C). */
+.mm-marquee {
+  position: absolute;
+  border: 1px solid var(--interactive-accent);
+  background: rgba(var(--interactive-accent-rgb, 100, 100, 255), 0.12);
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Optional looks (settings-driven, default off)                          */
+/* ---------------------------------------------------------------------- */
+
+/* Depth-scaled font (owner wishlist #5) — pure CSS, toggled by a class. */
+.mm-world.mm-depth-font .mm-node[data-depth="2"] {
+  font-size: 0.95em;
+}
+.mm-world.mm-depth-font .mm-node[data-depth="3"] {
+  font-size: 0.9em;
+}
+.mm-world.mm-depth-font .mm-node[data-depth="4"],
+.mm-world.mm-depth-font .mm-node[data-depth="5"],
+.mm-world.mm-depth-font .mm-node[data-depth="6"] {
+  font-size: 0.85em;
+}
+
+/* Focus mode hook: Stage C marks nodes outside the focused subtree. */
+.mm-world.mm-focus-mode .mm-node.mm-dimmed {
+  opacity: 0.25;
+}
+.mm-world.mm-focus-mode .mm-edge.mm-dimmed {
+  opacity: 0.15;
+}
