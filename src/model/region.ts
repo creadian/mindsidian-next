@@ -65,6 +65,16 @@ export function splitRegions(text: string): RegionSplit {
   return { prefix: text.slice(0, splitAt), body: text.slice(splitAt), suffix: "" };
 }
 
+/** Read the `mindmap-zoom` frontmatter value from a prefix, or null if the
+ *  prefix has no frontmatter / no such key. Clamped to the 20–300 range. */
+export function readZoomFromPrefix(prefix: string): number | null {
+  const fmEnd = frontmatterEnd(prefix);
+  if (fmEnd === 0) return null;
+  const match = /^mindmap-zoom:[ \t]*([0-9]+)/m.exec(prefix.slice(0, fmEnd));
+  if (!match) return null;
+  return Math.min(300, Math.max(20, parseInt(match[1], 10)));
+}
+
 /**
  * Pure helper for the per-file zoom value (frontmatter key `mindmap-zoom`).
  * Updates only that one key inside the prefix, leaving every other byte

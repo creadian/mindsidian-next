@@ -448,3 +448,24 @@
 .mm-mobile-btn.mm-hidden {
   display: none;
 }
+
+/* ---- Stage D: Obsidian integration ---- */
+
+/* Mobile action bar size setting (--mm-bar-scale set by the view). */
+.mm-mobile-bar {
+  transform: scale(var(--mm-bar-scale, 1));
+  transform-origin: bottom center;
+}
+
+/* Parse-failure read-only panel (refuse-to-corrupt guard). */
+.mm-error-panel {
+  max-width: 480px;
+  margin: 15% auto 0;
+  padding: var(--size-4-4);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+}
+.mm-error-panel p {
+  color: var(--text-muted);
+}

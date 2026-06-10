@@ -149,3 +149,52 @@ per Stage A note; the harness's spotCheckSerialization shows the exact check).
 `controller.hasEdits` gates synthesized-root first writes (T7/E12). Wire `src/ui/wikilink.ts`'s
 `WikilinkPicker` with a FuzzySuggestModal. Mod-key zoom/fold hotkeys may collide with Obsidian
 defaults — resolve in the Stage D command table review.
+
+## Stage D — Obsidian integration
+
+Built: `src/view/MindmapView.ts` (TextFileView, save lifecycle + refuse-to-corrupt guard),
+`src/main.ts` (rewritten: view registration, Kanban-pattern swap via active-leaf-change +
+file-open, per-path mode memory, file/folder menus, ribbon, fold-path store),
+`src/commands.ts` (data-table command registration), `src/settings.ts` + `src/settingsTab.ts`
+(schemaVersion 1, frozen per-view snapshots), `src/validate.ts` (read-only shadow validation),
+`src/ui/wikilinkModal.ts` (FuzzySuggestModal picker), `scripts/install-vault.mjs`
+(`npm run install:vault`), Stage D styles appended. `src/view/devharness.ts` deleted.
+`src/model/region.ts` gained the pure `readZoomFromPrefix()` helper.
+
+Deviations from the design spec (all recorded, none weaken data safety):
+
+- **Refuse-to-corrupt guard uses serialize-idempotence** (`serialize(parse(s)) === s`),
+  not deep tree equality — per the Stage A handoff (expanded nodes get fresh random ids,
+  so deep equality would false-alarm). On failure: Notice + last-known-good bytes returned.
+- **Listeners keep the Stage C `attach()`/`destroy()` pattern** instead of a full
+  `registerDomEvent` refactor; teardown is guaranteed via `clear()`/`onClose()`. All
+  listeners sit on elements inside the view's own container (popout-safe via
+  `ownerDocument` where created). Only the new Stage D hover-preview listener uses
+  `registerDomEvent`. Full migration deferred as a refactor-only task.
+- **`getState`/`setState` not overridden** — the base FileView state (file path) is all
+  that must persist; everything else is intentionally ephemeral per-view state.
+- **No default hotkeys registered** — in-view editing keys live in `src/input/keyboard.ts`;
+  command-palette commands ship unbound so nothing collides with Obsidian defaults
+  (review of Mod-key zoom/fold bindings was the Stage C handoff concern; resolution: unbound).
+- **Zoom write goes through `processFrontMatter`** on `onUnloadFile`, after the base
+  class flushes any pending save; written only when the rounded % differs from the
+  value at load, and never for an untouched synthesized-root file (E12/T7).
+- **Save scheduling is diff-gated**: `onTreeChanged` serializes and calls `requestSave()`
+  only when the bytes differ from the last on-disk text — fold toggles in
+  `plugin-data`/`none` mode never touch the file; undoing back to the original is a no-op.
+- **Synthesized-root first save**: `getViewData` upgrades `doc.prefix` from `""` to the
+  default frontmatter exactly once, when the first real edit is saved (T7; Stage A emits
+  body only).
+- **`focusOnMove` wiring**: centers on the primary selection after *any* committed
+  mutation (not only move commands) — simplest faithful reading; default off.
+- **`.hotreload` marker NOT created** in the test vault — the orchestrator instruction
+  ("copy ONLY manifest.json, main.js, styles.css") overrides the design's hot-reload note.
+- **Mobile bar sizing** implemented as a CSS scale factor (`--mm-bar-scale`), set per
+  view from settings.
+
+Install: `manifest.json`, `main.js`, `styles.css` copied to
+`Claude_testing/.obsidian/plugins/mindsidian-next/`; plugin NOT enabled in
+`community-plugins.json` (owner enables manually, side-by-side with v0.5.47).
+
+Acceptance: `npm run build` clean; `npm test` → 90/90 pass; three files present in the
+test vault plugin folder.
