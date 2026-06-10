@@ -210,8 +210,23 @@ export class MindmapController {
     const result = this.editor.commit();
     if (!result) return;
     this.renderer.invalidateNode(result.nodeId);
-    if (result.newText !== null) {
-      this.execute(new ChangeTextCommand(result.nodeId, result.newText));
+    let newText = result.newText;
+    // The root must stay one non-empty H1 line — an empty or multi-line
+    // root has no lossless markdown form (it would trip the save
+    // self-check and silently block every save). Sanitize at commit time
+    // so what the user sees is exactly what gets saved.
+    if (newText !== null && result.nodeId === this.ctx.root.id) {
+      const flat = newText.replace(/\s*\n+\s*/g, " ").trim();
+      if (flat === "") {
+        this.notify("The root node cannot be empty — previous text kept.");
+        newText = null;
+      } else if (flat !== newText) {
+        this.notify("Root text must be a single line — line breaks removed.");
+        newText = flat;
+      }
+    }
+    if (newText !== null) {
+      this.execute(new ChangeTextCommand(result.nodeId, newText));
     } else {
       void this.refresh();
     }
