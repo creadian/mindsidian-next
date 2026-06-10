@@ -15,12 +15,13 @@ export class EdgeLayer {
   private paths = new Map<string, SVGPathElement>();
 
   constructor(worldEl: HTMLElement) {
-    // A zero-sized svg at the world origin with overflow visible: paths are
-    // drawn in world coordinates directly, no sizing/offset math to corrupt.
+    // A 1x1 svg at the world origin with overflow visible: paths are drawn
+    // in world coordinates directly, no sizing/offset math to corrupt.
+    // (1x1, not 0x0 — the SVG spec disables rendering entirely at width 0.)
     this.svg = document.createElementNS(SVG_NS, "svg");
     this.svg.classList.add("mm-edges");
-    this.svg.setAttribute("width", "0");
-    this.svg.setAttribute("height", "0");
+    this.svg.setAttribute("width", "1");
+    this.svg.setAttribute("height", "1");
     worldEl.appendChild(this.svg);
   }
 
