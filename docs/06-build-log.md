@@ -198,3 +198,67 @@ Install: `manifest.json`, `main.js`, `styles.css` copied to
 
 Acceptance: `npm run build` clean; `npm test` → 90/90 pass; three files present in the
 test vault plugin folder.
+
+---
+
+## 2026-06-10 — Verifier fix round (3 independent verifiers, 8 confirmed findings)
+
+All eight confirmed critical/major findings fixed; each as its own revertible commit.
+
+**Critical — serializer corruption/blocking at heading depth** (`src/model/serialize.ts`)
+- Multi-line text at heading depth was newline-flattened (`a\nb` → `## a b`) — silent
+  corruption that *passed* the save self-check. Now: split into one heading per line
+  (the heading-level analogue of the documented E9 bullet split); children re-attach to
+  the last line. No line is ever flattened away.
+- Empty nodes at heading depth emitted `## ` → self-check failed on *every* save →
+  session edits silently lost on close (trivially reachable: Tab on root, Escape; or a
+  legacy `- ` line under the H1). Now: a node with no heading form (empty text, or a
+  whole code fence) demotes its ENTIRE sibling group to bullet form — a lone bullet
+  between heading siblings would re-attach to the wrong parent on reparse, so the whole
+  group goes. Demotion triggers (empty / pure fence) survive reparse, keeping
+  serialization idempotent. Plus: `commitEdit` now refuses an empty root and visibly
+  collapses line breaks in root text (the root has no other lossless form).
+
+**Critical — fence-blind region split** (`src/model/region.ts`)
+- `splitRegions` took a `# ` line inside a code fence as the root H1 (e.g. a shell
+  comment), tearing the fence apart on first save of a regular note opened as mindmap.
+  Now tracks fence state exactly like the body lexer.
+
+**Major — duplicate fold ids** (`src/model/parse.ts`)
+- Two lines with the same `^id` collided in the id→node index (last-wins); commands
+  could delete/move the WRONG node. Parse now re-ids the second occurrence (collapsed
+  state kept, marker re-emits with the new id — text-lossless).
+
+**Major — unclosed fence mid-document** (`src/model/serialize.ts`)
+- An unclosed fence node moved mid-tree swallowed all following lines on reparse →
+  saves permanently refused. The serializer now closes an unclosed fence on emission;
+  text that merely starts with ``` but isn't one pure fence falls to the E9 line split.
+
+**Major — forced save rewrote unedited files** (`src/view/MindmapView.ts`)
+- `getViewData` now echoes the on-disk bytes until `hasEdits` for EVERY file (the
+  E12/T7 guarantee previously covered only synthesized roots). Ctrl+S / save-on-close
+  can no longer normalize a legacy file the user never touched.
+
+**Major — debounced-save race with external writers** (`src/view/MindmapView.ts`)
+- Pending saves are flushed on window blur / tab hide; if an external change forces a
+  rebuild while edits are pending (or an inline edit is open), a Notice says the recent
+  edits were discarded — never silent. **Known limitation (by design):** editing the
+  same mindmap file in two views/apps simultaneously is unsupported — the disk is the
+  source of truth and last-writer-wins inside the (now much smaller) debounce window.
+
+**Major — undo of backward sibling moves** (`src/model/commands.ts`)
+- `MoveNodeCommand.revert` double-applied `moveNode`'s same-parent index adjustment;
+  undo of move-up / wrap-around / drag-before left siblings reordered (then saved).
+  Revert now detaches and splices at the recorded absolute index. Tests cover all
+  three cases.
+
+**Known issues noted during the fix (not in findings, unchanged):** a task checkbox on
+a node at heading depth is not emitted (headings carry no checkbox) — pre-existing,
+symmetric on parse, no roundtrip divergence, but the task state is dropped on save.
+
+Verification: `npm run build` clean; `npm test` 103/103 (13 new tests); the
+`/tmp/mindsidian-v2-verify` roundtrip torture script re-run — output byte-identical to
+the pre-fix serializer on every real-world fixture (the three `identical=false` files
+are pre-existing documented normalizations; all idempotent; losscheck: 0 missing
+lines). `main.js`/`manifest.json`/`styles.css` re-copied to
+`Claude_testing/.obsidian/plugins/mindsidian-next/`.
