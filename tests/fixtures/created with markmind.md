@@ -1,0 +1,447 @@
+---
+mindmap-plugin: basic
+mindmap-zoom: 82
+---
+
+# created with markmind
+
+## node
+- [ ] sub node
+	- ==test==
+- this is
+	- bullet list
+		- sub node
+			- sub node 2
+				- sub sub node
+					- sub sub node 2. ^db18b2f2-f500-0c5e
+						- sub sub sub node.
+						- sub sub sub node 2
+							- sub sub sub sub node
+								- sub sub sub sub sub node
+									- sub sub sub sub sub sub node
+										- sub sub sub sub sub sub sub node
+			- bullet list 2
+				- sub node 2
+					- <mark style="background:#CDA8E6;">sub sub node</mark>
+				- <mark style="background:#FFD580;">child</mark>
+		- test
+			- new test
+				- bullet
+					- child
+						- child 2
+				- bullet
+					- child 3
+				- two dashes
+				- three dashes ^dc729908-8da2-4656
+					- test...
+						- ...
+	- new
+		- [ ] testttt
+			- [ ] test
+
+## test ^a6d35975-e12a-46ce
+- sub node 2
+	- test
+		- testtedttt
+			- njhjjhfffddt
+				- grest
+- test ^93703465-0fef-918b
+	- ree
+		- test
+	- test
+- fff
+	- dd
+	- sdsdffSub title
+		- dfdfdfSub title
+		- dfSub title
+			- test
+			- test
+			- yoooo
+			- ok
+				- grest
+					- cool
+						- super
+					- Sub title
+- node 3
+	- sub node
+	- sub node 2
+		- sub sub node
+		- sub sub node 2
+			- sub sub sub node
+			- sub sub sub node 2
+				- sub sub sub sub node
+					- sub sub sub sub sub node
+						- sub sub sub sub sub sub node
+							- sub sub sub sub sub sub sub node
+								- sub sub sub sub sub sub sub sub node
+				- Sub title
+				- Sub title
+				- Sub title
+				- Sub title
+					- Sub title
+		- ah yeah!!
+		- alright!!
+			- test
+				- tedt
+					- test
+						- tedt
+							- tetz
+					- tedt
+						- col
+							- ttt
+					- ok
+						- Sub title
+							- hhdd
+					- see.
+					- Sub title
+					- tedt
+					- trst
+						- oh this is so cooool
+							- yes yes
+							- loveee ittttt
+	- tedt
+		- tshs
+			- test
+			- okokok
+				- good. still works.
+					- Sub title
+		- text
+		- ok
+			- ok
+				- Sub title
+					- Sub title
+						- good
+						- ok
+							- fgooogf
+							- nnbb
+						- ok
+			- great!!!
+				- it works!!!
+				- so well
+				- so well
+				- so well
+					- Sub title
+						- jhgf
+					- ok
+					- ok
+					- yo
+		- hhh
+			- let's see
+				- test
+					- test
+						- test
+						- ok
+						- good
+						- good
+						- good
+							- looks good
+								- good
+									- ok
+										- Sub title
+										- yes
+										- yes
+										- yes
+										- yes
+								- like
+									- test
+										- test
+											- test
+												- test
+												- test
+												- test
+												- test
+												- test
+									- test
+									- test
+									- test
+									- test
+		- let's see
+		- Sub title
+	- mindsidian
+		- see technical docu
+			- Sub title
+				- Sub title
+					- Sub title
+					- Sub title
+						- Sub title
+			- Sub title
+				- Sub title
+				- Sub title
+					- Sub title
+		- bugs
+			- when zooming with trackpad, both mindmaps zoom
+				- okokok
+				- yeyseyeye
+			- great
+				- awesome
+		- enable adding wiki links
+		- make colored highlights
+		- when I move with arrow keys, dont move mindmap every time
+			- tedt
+			- Sub title
+		- have checkmarks, toggle done
+		- make sure that when two mindmaps are open, changes in one dont affect the other. make sure that when two mindmaps are open, changes in one dont affect the other
+		- Sub title
+	- node 3
+	- sub node
+	- sub node 2
+		- sub sub node
+		- sub sub node 2
+			- sub sub sub node
+			- sub sub sub node 2
+				- sub sub sub sub node
+					- sub sub sub sub sub node
+						- sub sub sub sub sub sub node
+							- sub sub sub sub sub sub sub node
+								- sub sub sub sub sub sub sub sub node
+	- tedt
+		- tshs
+	- mindsidian
+		- see technical docu
+		- bugs
+			- when zooming with trackpad, both mindmaps zoom
+		- enable adding wiki links
+		- make colored highlights
+		- when I move with arrow keys, dont move mindmap every time
+			- huggd
+		- have checkmarks, toggle done
+		- make sure that when two mindmaps are open, changes in one dont affect the other
+	- test
+		- test
+			- test
+				- test
+					- test
+						- test
+							- test
+								- Sub title
+								- rest
+								- test
+								- test
+								- test
+								- test
+								- test
+								- Sub title
+- dfdf
+	- Sub title
+- ok let's see.
+- seems good
+	- test
+		- Sub title
+			- Sub title
+				- Sub title
+					- Sub title
+					- Sub title
+					- Sub title
+					- Sub title
+					- Sub title
+					- Sub title
+					- Sub title
+					- Sub title
+					- Sub title
+					- Sub title
+					- Sub title
+					- Sub title
+					- Sub title
+						- hdhd
+						- Sub title
+						- Sub title
+						- Sub title
+						- Sub title
+						- Sub title
+							- Sub title
+								- Sub title
+									- Sub title
+										- Sub title
+											- Sub title
+												- Sub title
+												- Sub title
+												- Sub title
+												- Sub title
+
+## node 3
+- tedt
+- mindsidian
+	- see technical docu
+	- bugs
+		- when zooming with trackpad, both mindmaps zoom
+	- enable adding wiki links
+	- make colored highlights
+	- when I move with arrow keys, dont move mindmap every time
+	- have checkmarks, toggle done
+	- make sure that when two mindmaps are open, changes in one dont affect the other
+
+## new node
+- node 3
+	- tedt
+	- mindsidian
+		- see technical docu
+		- bugs
+			- when zooming with trackpad, both mindmaps zoom
+		- enable adding wiki links
+		- make colored highlights
+		- when I move with arrow keys, dont move mindmap every time
+		- have checkmarks, toggle done
+		- make sure that when two mindmaps are open, changes in one dont affect the other
+
+## node 3
+- tedt
+- mindsidian
+	- see technical docu
+	- bugs
+		- when zooming with trackpad, both mindmaps zoom
+	- enable adding wiki links
+	- make colored highlights
+	- when I move with arrow keys, dont move mindmap every time
+	- have checkmarks, toggle done
+	- make sure that when two mindmaps are open, changes in one dont affect the other
+
+## Sub title
+- fdfdf
+- Sub title
+- Sub title
+	- dfdffd
+	- Sub title
+	- Sub title
+		- dddd
+		- Sub title
+		- Sub title
+		- Sub title
+			- Sub title
+			- test
+				- test
+				- test
+					- tetse
+						- test
+							- test
+							- test
+								- r
+									- asdf
+										- dfdffdf
+										- dsfdfd
+					- test
+					- tets
+					- test
+						- Sub title
+							- a
+								- a##
+								- dfdfd
+									- dfdffd
+									- dfdfdfd
+									- Sub title
+										- dfdfds
+											- dfdf
+											- dfdfdf
+												- Sub title
+						- fddsfs
+							- dfdfd
+								- Sub title
+									- sdffdfd
+									- Sub title
+										- hdfjfhdkfkdjfkjdklfjdkljfkdjfjdlkfd hdfjfhdkfkdjfkjdklfjdkljfkdjfjdlkfd hdfjfhdkfkdjfkjdklfjdkljfkdjfjdlkfd hdfjfhdkfkdjfkjdklfjdkljfkdjfjdlkfd hdfjfhdkfkdjfkjdklfjdkljfkdjfjdlkfd hdfjfhdkfkdjfkjdklfjdkljfkdjfjdlkfd hdfjfhdkfkdjfkjdklfjdkljfkdjfjdlkfd hdfjfhdkfkdjfkjdklfjdkljfkdjfjdlkfd hdfjfhdkfkdjfkjdklfjdkljfkdjfjdlkfd hdfjfhdkfkdjfkjdklfjdkljfkdjfjdlkfd hdfjfhdkfkdjfkjdklfjdkljfkdjfjdlkfd hdfjfhdkfkdjfkjdklfjdkljfkdjfjdlkfd hdfjfhdkfkdjfkjdklfjdkljfkdjfjdlkfd hdfjfhdkfkdjfkjdklfjdkljfkdjfjdlkfd
+											- Sub title
+											- Sub title
+												- Sub title
+												- Sub title
+													- Sub title
+														- Sub title
+													- Sub title
+														- Sub title
+															- Sub title
+																- Sub title
+																	- Sub title
+																		- Sub title
+																			- Sub title
+										- Sub title
+											- aa
+												- a
+													- a
+														- a
+															- a
+															- aa
+																- Sub title
+																	- Sub title
+																		- Sub title
+																			- Sub title
+																				- a
+										- Sub title
+										- Sub title
+										- Sub title
+										- Sub title
+										- Sub title
+
+## Sub title
+- test
+- Sub title
+	- dfdfdf
+		- dfdfs
+			- dfdf
+			- Sub title
+			- Sub title
+
+## Sub title
+- test
+- Sub title
+	- test
+	- Sub title
+
+## node 3
+- tedt
+- mindsidian
+	- see technical docu
+	- bugs
+		- when zooming with trackpad, both mindmaps zoom
+	- enable adding wiki links
+	- make colored highlights
+	- when I move with arrow keys, dont move mindmap every time
+	- have checkmarks, toggle done
+	- make sure that when two mindmaps are open, changes in one dont affect the other
+- node 3
+- tedt
+- mindsidian
+	- see technical docu
+	- bugs
+		- when zooming with trackpad, both mindmaps zoom
+	- enable adding wiki links
+	- make colored highlights
+	- when I move with arrow keys, dont move mindmap every time
+	- have checkmarks, toggle done
+	- make sure that when two mindmaps are open, changes in one dont affect the other
+- node 3
+- tedt
+- mindsidian adding some
+	- see technical docu
+	- bugs
+		- when zooming with trackpad, both mindmaps zoom
+	- enable adding wiki links
+	- make colored highlights
+	- when I move with arrow keys, dont move mindmap every time
+	- have checkmarks, toggle done
+		- mindsidian
+			- see technical docu
+			- bugs
+				- when zooming with trackpad, both mindmaps zoom
+			- enable adding wiki links
+			- make colored highlights
+				- mindsidian
+					- see technical docu
+					- bugs
+						- when zooming with trackpad, both mindmaps zoom
+					- enable adding wiki links
+					- make colored highlights
+					- when I move with arrow keys, dont move mindmap every time
+					- have checkmarks, toggle done
+					- make sure that when two mindmaps are open, changes in one dont affect the other
+			- when I move with arrow keys, dont move mindmap every time
+			- have checkmarks, toggle done
+			- make sure that when two mindmaps are open, changes in one dont affect the other
+	- make sure that when two mindmaps are open, changes in one dont affect the other
+- ok
+	- ok
+		- test
+			- test
+			- test
+			- Sub title
+- node 3
+- tedt
+- node 3
+- tedt
