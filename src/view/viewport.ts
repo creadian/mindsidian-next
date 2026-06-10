@@ -184,7 +184,7 @@ export class Viewport {
     this.world.style.transform = `translate(${this.t.x}px, ${this.t.y}px) scale(${this.t.scale})`;
     // Expose the zoom to CSS so e.g. the fold-dot tap target can be
     // inverse-scaled (stays finger-sized at any zoom). Styling stays in CSS.
-    this.world.style.setProperty("--mm-scale", String(this.t.scale));
+    this.world.style.setProperty("--mn-scale", String(this.t.scale));
   }
 
   private cancelAnimation(): void {

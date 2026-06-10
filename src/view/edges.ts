@@ -19,7 +19,7 @@ export class EdgeLayer {
     // in world coordinates directly, no sizing/offset math to corrupt.
     // (1x1, not 0x0 — the SVG spec disables rendering entirely at width 0.)
     this.svg = document.createElementNS(SVG_NS, "svg");
-    this.svg.classList.add("mm-edges");
+    this.svg.classList.add("mn-edges");
     this.svg.setAttribute("width", "1");
     this.svg.setAttribute("height", "1");
     worldEl.appendChild(this.svg);
@@ -49,16 +49,16 @@ export class EdgeLayer {
           let path = this.paths.get(child.id);
           if (!path) {
             path = document.createElementNS(SVG_NS, "path");
-            path.classList.add("mm-edge");
+            path.classList.add("mn-edge");
             this.svg.appendChild(path);
             this.paths.set(child.id, path);
           }
           const a = edgeAnchors(parentPos, parentSize, childPos, childSize);
           path.setAttribute("d", bezier(a.x1, a.y1, a.x2, a.y2));
           // Root edges (to first-level nodes) are drawn thicker via CSS.
-          path.classList.toggle("mm-edge-root", parent.parent === null);
+          path.classList.toggle("mn-edge-root", parent.parent === null);
           path.style.setProperty(
-            "--mm-branch-color",
+            "--mn-branch-color",
             branchColor(childPos.branchIndex)
           );
         }

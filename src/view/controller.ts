@@ -79,7 +79,7 @@ export class MindmapController {
     this.callbacks = options.callbacks;
 
     this.focusAnchor = options.containerEl.ownerDocument.createElement("div");
-    this.focusAnchor.className = "mm-focus-anchor";
+    this.focusAnchor.className = "mn-focus-anchor";
     this.focusAnchor.tabIndex = -1;
     options.containerEl.appendChild(this.focusAnchor);
   }

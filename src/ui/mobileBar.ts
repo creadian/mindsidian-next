@@ -26,7 +26,7 @@ export class MobileActionBar {
     this.c = controller;
     const doc = controller.containerEl.ownerDocument;
     this.el = doc.createElement("div");
-    this.el.className = "mm-mobile-bar";
+    this.el.className = "mn-mobile-bar";
 
     const specs: BarButton[] = [
       { icon: "↩", label: "Add sibling", hideOnRoot: true, action: () => this.c.addSiblingBelow() },
@@ -40,7 +40,7 @@ export class MobileActionBar {
     ];
     for (const spec of specs) {
       const btn = doc.createElement("button");
-      btn.className = "mm-mobile-btn";
+      btn.className = "mn-mobile-btn";
       btn.textContent = spec.icon;
       btn.setAttribute("aria-label", spec.label);
       // pointerdown + preventDefault: act inside the gesture without
@@ -76,7 +76,7 @@ export class MobileActionBar {
     const primary = this.c.primaryNode;
     const isRoot = primary !== null && primary.parent === null;
     for (const { el, spec } of this.buttons) {
-      el.classList.toggle("mm-hidden", spec.hideOnRoot === true && isRoot);
+      el.classList.toggle("mn-hidden", spec.hideOnRoot === true && isRoot);
     }
   }
 

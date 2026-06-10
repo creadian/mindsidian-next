@@ -238,7 +238,7 @@ export class MindmapView extends TextFileView {
 
     // DOM scaffold: container (events, focus) + world (transformed content).
     this.contentEl.empty();
-    this.contentEl.addClass("mm-container");
+    this.contentEl.addClass("mn-container");
     this.applyContainerStyle();
     const world = this.contentEl.createDiv();
 
@@ -322,8 +322,8 @@ export class MindmapView extends TextFileView {
 
   private showErrorPanel(error: string): void {
     this.contentEl.empty();
-    this.contentEl.removeClass("mm-container");
-    const panel = this.contentEl.createDiv({ cls: "mm-error-panel" });
+    this.contentEl.removeClass("mn-container");
+    const panel = this.contentEl.createDiv({ cls: "mn-error-panel" });
     panel.createEl("h3", { text: "This mindmap could not be parsed" });
     panel.createEl("p", {
       text: "To protect your data, the file is read-only in this view and nothing will be written to disk.",
@@ -348,10 +348,10 @@ export class MindmapView extends TextFileView {
 
   private applyContainerStyle(): void {
     const bg = this.plugin.settings.canvasBackground.trim();
-    if (bg) this.contentEl.style.setProperty("--mm-canvas-background", bg);
-    else this.contentEl.style.removeProperty("--mm-canvas-background");
+    if (bg) this.contentEl.style.setProperty("--mn-canvas-background", bg);
+    else this.contentEl.style.removeProperty("--mn-canvas-background");
     this.contentEl.style.setProperty(
-      "--mm-bar-scale",
+      "--mn-bar-scale",
       String(this.plugin.settings.mobileBarScale)
     );
   }
@@ -425,6 +425,6 @@ export class MindmapView extends TextFileView {
     this.renderer = null;
     this.viewport = null;
     this.contentEl.empty();
-    this.contentEl.removeClass("mm-container");
+    this.contentEl.removeClass("mn-container");
   }
 }

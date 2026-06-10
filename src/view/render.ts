@@ -84,14 +84,14 @@ export class MindmapRenderer {
     this.worldEl = worldEl;
     this.renderMarkdown = options?.renderMarkdown ?? null;
     this.settings = options?.settings ?? DEFAULT_RENDER_SETTINGS;
-    this.worldEl.classList.add("mm-world");
+    this.worldEl.classList.add("mn-world");
     this.applySettingsToWorld();
     this.edges = new EdgeLayer(worldEl);
     // Late content (images/embeds) re-measures through one shared observer.
     if (typeof ResizeObserver !== "undefined") {
       this.resizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
-          const id = (entry.target as HTMLElement).dataset.mmId;
+          const id = (entry.target as HTMLElement).dataset.mnId;
           const view = id ? this.views.get(id) : undefined;
           if (!view) continue;
           const w = view.el.offsetWidth;
@@ -114,11 +114,11 @@ export class MindmapRenderer {
 
   private applySettingsToWorld(): void {
     this.worldEl.style.setProperty(
-      "--mm-node-max-width",
+      "--mn-node-max-width",
       `${this.settings.nodeMaxWidth}px`
     );
     this.worldEl.classList.toggle(
-      "mm-depth-font",
+      "mn-depth-font",
       this.settings.depthScaledFont
     );
   }
@@ -212,7 +212,7 @@ export class MindmapRenderer {
       view.el.dataset.branch = String(pos.branchIndex);
       view.el.dataset.side = pos.side; // CSS places the fold dot per side
       view.el.style.setProperty(
-        "--mm-branch-color",
+        "--mn-branch-color",
         this.branchColor(pos.branchIndex)
       );
     }
@@ -255,10 +255,10 @@ export class MindmapRenderer {
     let view = this.views.get(node.id);
     if (!view) {
       const el = document.createElement("div");
-      el.classList.add("mm-node");
-      el.dataset.mmId = node.id;
+      el.classList.add("mn-node");
+      el.dataset.mnId = node.id;
       const contentEl = document.createElement("div");
-      contentEl.classList.add("mm-node-content");
+      contentEl.classList.add("mn-node-content");
       el.appendChild(contentEl);
       this.worldEl.appendChild(el);
       view = {
@@ -281,7 +281,7 @@ export class MindmapRenderer {
     if (node.task !== "none") {
       if (!view.taskEl) {
         view.taskEl = document.createElement("span");
-        view.taskEl.classList.add("mm-task");
+        view.taskEl.classList.add("mn-task");
         view.el.insertBefore(view.taskEl, view.contentEl);
       }
       if (view.renderedTask !== node.task) {
@@ -299,7 +299,7 @@ export class MindmapRenderer {
     if (node.children.length > 0) {
       if (!view.foldEl) {
         view.foldEl = document.createElement("div");
-        view.foldEl.classList.add("mm-fold-dot");
+        view.foldEl.classList.add("mn-fold-dot");
         view.el.appendChild(view.foldEl);
       }
       view.foldEl.textContent = node.collapsed

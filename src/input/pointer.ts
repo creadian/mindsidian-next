@@ -124,24 +124,24 @@ export class PointerController {
     }
 
     // Fold dot / task checkbox: act immediately (snappy, undoable).
-    const foldEl = target.closest(".mm-fold-dot");
+    const foldEl = target.closest(".mn-fold-dot");
     if (foldEl) {
       if (e.pointerType === "mouse") e.preventDefault();
-      const id = (foldEl.closest(".mm-node") as HTMLElement | null)?.dataset.mmId;
+      const id = (foldEl.closest(".mn-node") as HTMLElement | null)?.dataset.mnId;
       if (id) this.c.toggleFold(id);
       return;
     }
-    const taskEl = target.closest(".mm-task");
+    const taskEl = target.closest(".mn-task");
     if (taskEl) {
       if (e.pointerType === "mouse") e.preventDefault();
-      const id = (taskEl.closest(".mm-node") as HTMLElement | null)?.dataset.mmId;
+      const id = (taskEl.closest(".mn-node") as HTMLElement | null)?.dataset.mnId;
       if (id) this.c.toggleTaskBinary(id);
       return;
     }
 
     const anchor = target.closest("a") as HTMLAnchorElement | null;
-    const nodeEl = target.closest(".mm-node") as HTMLElement | null;
-    const nodeId = nodeEl?.dataset.mmId ?? null;
+    const nodeEl = target.closest(".mn-node") as HTMLElement | null;
+    const nodeId = nodeEl?.dataset.mnId ?? null;
 
     // preventDefault on MOUSE only — never on touch (iOS click synthesis).
     if (e.pointerType === "mouse" && !anchor) e.preventDefault();
@@ -316,18 +316,18 @@ export class PointerController {
 
     const doc = this.containerEl.ownerDocument;
     const ghostEl = doc.createElement("div");
-    ghostEl.className = "mm-ghost";
+    ghostEl.className = "mn-ghost";
     const sourceEl = this.c.renderer.getElement(node.id);
     ghostEl.textContent = node.text || " ";
     if (group.length > 1) ghostEl.dataset.count = String(group.length);
     this.containerEl.appendChild(ghostEl);
     const arrowEl = doc.createElement("div");
-    arrowEl.className = "mm-drop-arrow";
+    arrowEl.className = "mn-drop-arrow";
     this.containerEl.appendChild(arrowEl);
 
     for (const n of group) this.c.renderer.getElement(n.id)?.classList.add("is-dragging");
     sourceEl?.classList.add("is-dragging");
-    this.containerEl.classList.add("mm-is-dragging");
+    this.containerEl.classList.add("mn-is-dragging");
 
     const isTouch = press.pointerType !== "mouse";
     this.drag = {
@@ -373,9 +373,9 @@ export class PointerController {
     if (!drag) return;
     const doc = this.containerEl.ownerDocument;
     const el = doc.elementFromPoint(clientX + drag.hitDx, clientY + drag.hitDy);
-    const nodeEl = el?.closest?.(".mm-node") as HTMLElement | null;
+    const nodeEl = el?.closest?.(".mn-node") as HTMLElement | null;
     if (!nodeEl || !this.containerEl.contains(nodeEl)) return;
-    const id = nodeEl.dataset.mmId;
+    const id = nodeEl.dataset.mnId;
     if (!id || drag.excluded.has(id)) return;
     const target = this.c.node(id);
     if (!target) return;
@@ -467,7 +467,7 @@ export class PointerController {
     for (const n of drag.nodes) {
       this.c.renderer.getElement(n.id)?.classList.remove("is-dragging");
     }
-    this.containerEl.classList.remove("mm-is-dragging");
+    this.containerEl.classList.remove("mn-is-dragging");
     this.drag = null;
   }
 
@@ -476,11 +476,11 @@ export class PointerController {
   private startMarquee(press: Press): void {
     const doc = this.containerEl.ownerDocument;
     const rectEl = doc.createElement("div");
-    rectEl.className = "mm-marquee";
+    rectEl.className = "mn-marquee";
     this.worldEl.appendChild(rectEl); // world coords: zooms with the map
     const start = this.c.viewport.screenToWorld(press.startX, press.startY);
     this.marquee = { rectEl, startWorldX: start.x, startWorldY: start.y };
-    this.containerEl.classList.add("mm-marquee-mode");
+    this.containerEl.classList.add("mn-marquee-mode");
     press.moved = true; // from now on, moves draw the rectangle
   }
 
@@ -513,7 +513,7 @@ export class PointerController {
     const m = this.marquee;
     if (!m) return;
     m.rectEl.remove();
-    this.containerEl.classList.remove("mm-marquee-mode");
+    this.containerEl.classList.remove("mn-marquee-mode");
     this.marquee = null;
     // The selection made by the marquee stays.
   }

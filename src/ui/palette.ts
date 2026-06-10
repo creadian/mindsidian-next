@@ -42,7 +42,7 @@ export class HighlightPalette {
 
     const doc = this.c.containerEl.ownerDocument;
     const el = doc.createElement("div");
-    el.className = "mm-palette";
+    el.className = "mn-palette";
     for (const color of HIGHLIGHT_COLORS) {
       el.appendChild(this.swatch(doc, color.hex, color.name));
     }
@@ -72,9 +72,9 @@ export class HighlightPalette {
 
   private swatch(doc: Document, hex: string | null, label: string): HTMLElement {
     const btn = doc.createElement("button");
-    btn.className = hex ? "mm-palette-swatch" : "mm-palette-clear";
+    btn.className = hex ? "mn-palette-swatch" : "mn-palette-clear";
     btn.setAttribute("aria-label", label);
-    if (hex) btn.style.setProperty("--mm-swatch-color", hex);
+    if (hex) btn.style.setProperty("--mn-swatch-color", hex);
     else btn.textContent = "×";
     // pointerdown (not click) so an in-flight edit keeps its focus/keyboard.
     btn.addEventListener("pointerdown", (e) => {

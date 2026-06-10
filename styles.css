@@ -8,7 +8,7 @@
 
 /* The fixed viewport. The world inside it carries the single
    translate()+scale() transform written by viewport.ts. */
-.mm-container {
+.mn-container {
   position: relative;
   width: 100%;
   height: 100%;
@@ -17,12 +17,12 @@
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
-  background: var(--mm-canvas-background, var(--background-primary));
+  background: var(--mn-canvas-background, var(--background-primary));
   cursor: grab;
 }
 
 /* Zero-sized origin element; nodes/edges are placed in world coordinates. */
-.mm-world {
+.mn-world {
   position: absolute;
   top: 0;
   left: 0;
@@ -36,7 +36,7 @@
 /* Edge layer (one SVG under the nodes)                                   */
 /* ---------------------------------------------------------------------- */
 
-.mm-edges {
+.mn-edges {
   position: absolute;
   top: 0;
   left: 0;
@@ -44,16 +44,16 @@
   pointer-events: none;
 }
 
-.mm-edge {
+.mn-edge {
   fill: none;
-  stroke: var(--mm-branch-color, var(--interactive-accent));
+  stroke: var(--mn-branch-color, var(--interactive-accent));
   stroke-width: 2px;
   stroke-linecap: round;
   opacity: 0.9;
 }
 
 /* Edges leaving the root are drawn thicker (v1 look). */
-.mm-edge-root {
+.mn-edge-root {
   stroke-width: 3.5px;
 }
 
@@ -61,7 +61,7 @@
 /* Nodes                                                                  */
 /* ---------------------------------------------------------------------- */
 
-.mm-node {
+.mn-node {
   position: absolute;
   top: 0;
   left: 0;
@@ -70,7 +70,7 @@
   gap: 6px;
   box-sizing: border-box;
   width: max-content;
-  max-width: var(--mm-node-max-width, 800px);
+  max-width: var(--mn-node-max-width, 800px);
   padding: 4px 10px;
   border-radius: 6px;
   color: var(--text-normal);
@@ -83,7 +83,7 @@
 }
 
 /* Root node: filled accent pill, larger text. */
-.mm-node[data-depth="0"] {
+.mn-node[data-depth="0"] {
   background: var(--interactive-accent);
   color: var(--text-on-accent);
   font-size: 1.3em;
@@ -93,45 +93,45 @@
 }
 
 /* First level: outlined box in the branch color. */
-.mm-node[data-depth="1"] {
+.mn-node[data-depth="1"] {
   background: var(--background-primary);
-  border: 2px solid var(--mm-branch-color, var(--interactive-accent));
+  border: 2px solid var(--mn-branch-color, var(--interactive-accent));
   font-weight: 500;
 }
 
 /* Deeper levels: light text on the canvas with a branch-colored underline
    (the connector's "shelf" — matches the v1 mindmap look). */
-.mm-node:not([data-depth="0"]):not([data-depth="1"]) {
+.mn-node:not([data-depth="0"]):not([data-depth="1"]) {
   background: transparent;
-  border-bottom: 2px solid var(--mm-branch-color, var(--interactive-accent));
+  border-bottom: 2px solid var(--mn-branch-color, var(--interactive-accent));
   border-radius: 0;
   padding: 2px 6px 3px;
 }
 
 /* Markdown output normalization inside nodes: a node is one line of text,
    so strip the paragraph margins MarkdownRenderer adds. */
-.mm-node-content {
+.mn-node-content {
   min-width: 1em;
   min-height: 1em;
   overflow-wrap: anywhere;
 }
-.mm-node-content p {
+.mn-node-content p {
   margin: 0;
 }
-.mm-node-content ul,
-.mm-node-content ol {
+.mn-node-content ul,
+.mn-node-content ol {
   margin: 0;
   padding-inline-start: 1.2em;
 }
-.mm-node-content img {
+.mn-node-content img {
   max-width: 100%;
   display: block;
 }
-.mm-node-content code {
+.mn-node-content code {
   font-family: var(--font-monospace);
   font-size: 0.9em;
 }
-.mm-node-content pre {
+.mn-node-content pre {
   margin: 0;
   text-align: left;
   white-space: pre;
@@ -139,7 +139,7 @@
 
 /* Default ==highlight== uses the theme highlight color; colored highlights
    carry their own inline <mark style> from the file text. */
-.mm-node-content mark {
+.mn-node-content mark {
   background: var(--text-highlight-bg);
   color: inherit;
   border-radius: 2px;
@@ -147,7 +147,7 @@
 }
 
 /* Wikilinks keep Obsidian's link look. */
-.mm-node-content a.internal-link {
+.mn-node-content a.internal-link {
   color: var(--link-color);
 }
 
@@ -155,7 +155,7 @@
 /* Task checkbox (render-only in Stage B; Stage C wires the tap)          */
 /* ---------------------------------------------------------------------- */
 
-.mm-task {
+.mn-task {
   flex: 0 0 auto;
   width: 1em;
   height: 1em;
@@ -169,13 +169,13 @@
   cursor: pointer;
 }
 
-.mm-task[data-state="done"] {
+.mn-task[data-state="done"] {
   background: var(--interactive-accent);
   border-color: var(--interactive-accent);
 }
 
 /* Done tasks mute the node text. */
-.mm-node:has(.mm-task[data-state="done"]) .mm-node-content {
+.mn-node:has(.mn-task[data-state="done"]) .mn-node-content {
   color: var(--text-muted);
   text-decoration: line-through;
 }
@@ -184,7 +184,7 @@
 /* Fold dot                                                               */
 /* ---------------------------------------------------------------------- */
 
-.mm-fold-dot {
+.mn-fold-dot {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
@@ -192,7 +192,7 @@
   height: 10px;
   padding: 0 2px;
   border-radius: 7px;
-  background: var(--mm-branch-color, var(--interactive-accent));
+  background: var(--mn-branch-color, var(--interactive-accent));
   color: var(--text-on-accent);
   font-size: 9px;
   line-height: 10px;
@@ -202,24 +202,24 @@
 }
 
 /* The dot sits just past the node on the side its children grow toward. */
-.mm-node[data-side="right"] .mm-fold-dot {
+.mn-node[data-side="right"] .mn-fold-dot {
   right: -16px;
 }
-.mm-node[data-side="left"] .mm-fold-dot {
+.mn-node[data-side="left"] .mn-fold-dot {
   left: -16px;
 }
 
 /* Generous invisible tap target around the small visual dot,
    inverse-scaled so it stays finger-sized at any zoom level
-   (--mm-scale is written by viewport.ts on every transform change). */
-.mm-fold-dot::after {
+   (--mn-scale is written by viewport.ts on every transform change). */
+.mn-fold-dot::after {
   content: "";
   position: absolute;
-  inset: calc(-12px / var(--mm-scale, 1));
+  inset: calc(-12px / var(--mn-scale, 1));
 }
 
 /* Collapsed: hollow ring → filled badge showing the hidden-node count. */
-.mm-node.is-collapsed .mm-fold-dot {
+.mn-node.is-collapsed .mn-fold-dot {
   min-width: 16px;
   height: 16px;
   border-radius: 9px;
@@ -232,17 +232,17 @@
 /* Node states (selection/editing/drag — wired by Stage C)                */
 /* ---------------------------------------------------------------------- */
 
-.mm-node.is-selected {
+.mn-node.is-selected {
   outline: 2px solid var(--interactive-accent);
   outline-offset: 2px;
 }
 
-.mm-node.is-multi-selected {
+.mn-node.is-multi-selected {
   outline: 2px dashed var(--interactive-accent);
   outline-offset: 2px;
 }
 
-.mm-node.is-editing {
+.mn-node.is-editing {
   outline: 2px solid var(--interactive-accent);
   outline-offset: 2px;
   background: var(--background-primary);
@@ -252,17 +252,17 @@
   -webkit-user-select: text;
 }
 
-.mm-node.is-drop-target {
+.mn-node.is-drop-target {
   outline: 2px solid var(--color-green, #44cf6e);
   outline-offset: 2px;
 }
 
-.mm-node.is-dragging {
+.mn-node.is-dragging {
   opacity: 0.5;
 }
 
 /* Marquee selection rectangle (Stage C). */
-.mm-marquee {
+.mn-marquee {
   position: absolute;
   border: 1px solid var(--interactive-accent);
   background: rgba(var(--interactive-accent-rgb, 100, 100, 255), 0.12);
@@ -275,23 +275,23 @@
 /* ---------------------------------------------------------------------- */
 
 /* Depth-scaled font (owner wishlist #5) — pure CSS, toggled by a class. */
-.mm-world.mm-depth-font .mm-node[data-depth="2"] {
+.mn-world.mn-depth-font .mn-node[data-depth="2"] {
   font-size: 0.95em;
 }
-.mm-world.mm-depth-font .mm-node[data-depth="3"] {
+.mn-world.mn-depth-font .mn-node[data-depth="3"] {
   font-size: 0.9em;
 }
-.mm-world.mm-depth-font .mm-node[data-depth="4"],
-.mm-world.mm-depth-font .mm-node[data-depth="5"],
-.mm-world.mm-depth-font .mm-node[data-depth="6"] {
+.mn-world.mn-depth-font .mn-node[data-depth="4"],
+.mn-world.mn-depth-font .mn-node[data-depth="5"],
+.mn-world.mn-depth-font .mn-node[data-depth="6"] {
   font-size: 0.85em;
 }
 
 /* Focus mode hook: Stage C marks nodes outside the focused subtree. */
-.mm-world.mm-focus-mode .mm-node.mm-dimmed {
+.mn-world.mn-focus-mode .mn-node.mn-dimmed {
   opacity: 0.25;
 }
-.mm-world.mm-focus-mode .mm-edge.mm-dimmed {
+.mn-world.mn-focus-mode .mn-edge.mn-dimmed {
   opacity: 0.15;
 }
 
@@ -300,7 +300,7 @@
 /* ---------------------------------------------------------------------- */
 
 /* Hidden, stable keyboard-focus anchor: focusing it can never scroll. */
-.mm-focus-anchor {
+.mn-focus-anchor {
   position: absolute;
   top: 0;
   left: 0;
@@ -311,27 +311,27 @@
 }
 
 /* Editing: placeholder for empty nodes — display only, never saved (B5). */
-.mm-node.is-editing .mm-node-content:empty::before {
+.mn-node.is-editing .mn-node-content:empty::before {
   content: "…";
   opacity: 0.4;
 }
-.mm-node.is-editing .mm-node-content {
+.mn-node.is-editing .mn-node-content {
   white-space: pre-wrap;
   cursor: text;
 }
 
 /* Marquee mode: crosshair everywhere while the rectangle is live. */
-.mm-container.mm-marquee-mode {
+.mn-container.mn-marquee-mode {
   cursor: crosshair;
 }
 
 /* While dragging a node. */
-.mm-container.mm-is-dragging {
+.mn-container.mn-is-dragging {
   cursor: grabbing;
 }
 
 /* Drag ghost: follows the pointer in container coordinates. */
-.mm-ghost {
+.mn-ghost {
   position: absolute;
   top: 0;
   left: 0;
@@ -350,14 +350,14 @@
   z-index: 20;
 }
 /* Group drag: show how many nodes ride along. */
-.mm-ghost[data-count]::after {
+.mn-ghost[data-count]::after {
   content: " ×" attr(data-count);
   color: var(--text-muted);
   font-size: 0.85em;
 }
 
 /* Drop-kind arrow next to the shown target (sticky until replaced). */
-.mm-drop-arrow {
+.mn-drop-arrow {
   position: absolute;
   top: 0;
   left: 0;
@@ -368,23 +368,23 @@
   pointer-events: none;
   z-index: 21;
 }
-.mm-drop-arrow::before {
+.mn-drop-arrow::before {
   position: absolute;
   transform: translate(-50%, -50%);
   font-size: 16px;
 }
-.mm-drop-arrow[data-kind="child"]::before {
+.mn-drop-arrow[data-kind="child"]::before {
   content: "→";
 }
-.mm-drop-arrow[data-kind="before"]::before {
+.mn-drop-arrow[data-kind="before"]::before {
   content: "↑";
 }
-.mm-drop-arrow[data-kind="after"]::before {
+.mn-drop-arrow[data-kind="after"]::before {
   content: "↓";
 }
 
 /* Highlight palette. */
-.mm-palette {
+.mn-palette {
   position: absolute;
   top: 0;
   left: 0;
@@ -397,8 +397,8 @@
   box-shadow: var(--shadow-s, 0 2px 8px rgba(0, 0, 0, 0.2));
   z-index: 30;
 }
-.mm-palette-swatch,
-.mm-palette-clear {
+.mn-palette-swatch,
+.mn-palette-clear {
   width: 24px;
   height: 24px;
   padding: 0;
@@ -406,10 +406,10 @@
   border: 1px solid var(--background-modifier-border);
   cursor: pointer;
 }
-.mm-palette-swatch {
-  background: var(--mm-swatch-color);
+.mn-palette-swatch {
+  background: var(--mn-swatch-color);
 }
-.mm-palette-clear {
+.mn-palette-clear {
   background: var(--background-primary);
   color: var(--text-muted);
   font-size: 14px;
@@ -418,7 +418,7 @@
 
 /* Mobile bottom action bar — keyboard offset via translateY from JS,
    safe area from CSS only. */
-.mm-mobile-bar {
+.mn-mobile-bar {
   position: absolute;
   left: 50%;
   bottom: calc(12px + env(safe-area-inset-bottom, 0px));
@@ -432,7 +432,7 @@
   box-shadow: var(--shadow-s, 0 2px 8px rgba(0, 0, 0, 0.2));
   z-index: 30;
 }
-.mm-mobile-btn {
+.mn-mobile-btn {
   min-width: 40px;
   height: 40px;
   padding: 0 8px;
@@ -443,23 +443,23 @@
   font-size: 18px;
   cursor: pointer;
 }
-.mm-mobile-btn:active {
+.mn-mobile-btn:active {
   background: var(--background-modifier-hover);
 }
-.mm-mobile-btn.mm-hidden {
+.mn-mobile-btn.mn-hidden {
   display: none;
 }
 
 /* ---- Stage D: Obsidian integration ---- */
 
-/* Mobile action bar size setting (--mm-bar-scale set by the view). */
-.mm-mobile-bar {
-  transform: scale(var(--mm-bar-scale, 1));
+/* Mobile action bar size setting (--mn-bar-scale set by the view). */
+.mn-mobile-bar {
+  transform: scale(var(--mn-bar-scale, 1));
   transform-origin: bottom center;
 }
 
 /* Parse-failure read-only panel (refuse-to-corrupt guard). */
-.mm-error-panel {
+.mn-error-panel {
   max-width: 480px;
   margin: 15% auto 0;
   padding: var(--size-4-4);
@@ -467,6 +467,6 @@
   border-radius: var(--radius-m);
   background: var(--background-secondary);
 }
-.mm-error-panel p {
+.mn-error-panel p {
   color: var(--text-muted);
 }
