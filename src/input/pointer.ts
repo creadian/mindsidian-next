@@ -145,7 +145,12 @@ export class PointerController {
 
     // preventDefault on MOUSE only — never on touch (iOS click synthesis).
     if (e.pointerType === "mouse" && !anchor) e.preventDefault();
-    this.containerEl.setPointerCapture(e.pointerId);
+    try {
+      this.containerEl.setPointerCapture(e.pointerId);
+    } catch {
+      // The pointer can already be gone (fast tap, synthetic event) — the
+      // press still works, only move-tracking outside the pane is lost.
+    }
 
     const press: Press = {
       pointerId: e.pointerId,
