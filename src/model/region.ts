@@ -11,7 +11,7 @@ export interface RegionSplit {
 }
 
 /** Default frontmatter written when a brand-new mindmap file is created. */
-export const DEFAULT_FRONTMATTER = "---\n\nmindmap-plugin: basic\n\n---\n\n";
+export const DEFAULT_FRONTMATTER = "---\nmindmap-plugin: basic\n---\n\n";
 
 /**
  * Find the byte offset just past the YAML frontmatter block, or 0 if the
