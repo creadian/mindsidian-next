@@ -18,6 +18,7 @@ interface ActiveEdit {
   composing: boolean;
   onCompositionStart: () => void;
   onCompositionEnd: () => void;
+  onBlur: (e: FocusEvent) => void;
 }
 
 export interface CommitResult {
@@ -66,9 +67,23 @@ export class NodeEditor {
       composing: false,
       onCompositionStart: () => (edit.composing = true),
       onCompositionEnd: () => (edit.composing = false),
+      onBlur: (e: FocusEvent) => {
+        // Obsidian's keymap-scope manager blurs elements it doesn't own
+        // (observed: programmatic blur with relatedTarget null right after
+        // begin()). While the edit is active, take focus back — but only
+        // for ownerless blurs; a non-null relatedTarget means the user
+        // deliberately focused something else (palette, another pane).
+        if (this.active !== edit || e.relatedTarget !== null) return;
+        requestAnimationFrame(() => {
+          if (this.active === edit && edit.contentEl.isConnected) {
+            edit.contentEl.focus({ preventScroll: true });
+          }
+        });
+      },
     };
     contentEl.addEventListener("compositionstart", edit.onCompositionStart);
     contentEl.addEventListener("compositionend", edit.onCompositionEnd);
+    contentEl.addEventListener("blur", edit.onBlur);
     this.active = edit;
 
     contentEl.focus({ preventScroll: true });
@@ -136,6 +151,7 @@ export class NodeEditor {
   private teardown(edit: ActiveEdit): void {
     edit.contentEl.removeEventListener("compositionstart", edit.onCompositionStart);
     edit.contentEl.removeEventListener("compositionend", edit.onCompositionEnd);
+    edit.contentEl.removeEventListener("blur", edit.onBlur);
     edit.contentEl.removeAttribute("contenteditable");
     edit.nodeEl.classList.remove("is-editing");
     edit.contentEl.blur();

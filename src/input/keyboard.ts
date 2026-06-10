@@ -46,6 +46,7 @@ export class KeyboardController {
     const t = e.target as HTMLElement | null;
     if (!t || t === this.containerEl.ownerDocument.body) return true;
     if (this.containerEl.contains(t)) return true;
+    if (t.contains(this.containerEl)) return true; // workspace/leaf ancestors
     return false; // a modal input, another pane's editor, a rename field, …
   }
 
