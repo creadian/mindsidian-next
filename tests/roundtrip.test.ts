@@ -362,3 +362,87 @@ test("P4: parseDocument never throws — returns ok:false instead", () => {
   const result = parseDocument("# R\n- x", "R");
   assert.equal(result.ok, true);
 });
+
+// ---- Lossless emission at heading depth (P3 — no newline flattening) ----
+
+test("code fence directly under the root H1 roundtrips losslessly", () => {
+  const input = "# Root\n```js\nlet x = 1\n```\n- after\n";
+  const out = assertIdempotent(input, "Root");
+  // The fence node demotes the sibling group to bullets — never flattened.
+  assert.ok(out.includes("  ```js\n  let x = 1\n  ```"));
+  const doc = parsed(out, "Root");
+  assert.deepEqual(flatTexts(doc.root), ["Root", "```js\nlet x = 1\n```", "after"]);
+});
+
+test("multi-line text at heading depth splits per line, no content lost", () => {
+  const root = createNode("Root");
+  const multi = createNode("alpha\nbeta\ngamma");
+  attachChild(root, multi, 0);
+  const pass1 = serializeBody(root);
+  assert.equal(pass1, "# Root\n\n## alpha\n\n## beta\n\n## gamma");
+  // Idempotent: a reparse + reserialize must be byte-identical.
+  const reparsed = parseBody(pass1, "Root");
+  assert.equal(serializeBody(reparsed.root), pass1);
+});
+
+test("children of a split multi-line heading node reattach to its last line", () => {
+  const root = createNode("Root");
+  const multi = createNode("alpha\nbeta");
+  attachChild(root, multi, 0);
+  attachChild(multi, createNode("kid"), 0);
+  const pass1 = serializeBody(root);
+  const reparsed = parseBody(pass1, "Root");
+  assert.equal(serializeBody(reparsed.root), pass1);
+  const beta = reparsed.root.children[1];
+  assert.equal(beta.text, "beta");
+  assert.deepEqual(beta.children.map((c) => c.text), ["kid"]);
+});
+
+test("empty node at heading depth saves as a bare '-' and stays saveable", () => {
+  // Legacy shape: "- " directly under the root H1 (also what Tab-then-
+  // Escape on the root leaves behind). Must roundtrip, never emit '## '.
+  const input = "# Root\n- \n- real\n";
+  const out = assertIdempotent(input, "Root");
+  assert.equal(out, "# Root\n-\n- real");
+  const doc = parsed(out, "Root");
+  assert.deepEqual(flatTexts(doc.root), ["Root", "", "real"]);
+});
+
+test("empty node created in-memory at heading depth roundtrips", () => {
+  const root = createNode("Root");
+  attachChild(root, createNode(""), 0);
+  attachChild(root, createNode("real"), 1);
+  const pass1 = serializeBody(root);
+  assert.equal(pass1, "# Root\n-\n- real");
+  const reparsed = parseBody(pass1, "Root");
+  assert.equal(serializeBody(reparsed.root), pass1);
+  assert.deepEqual(flatTexts(reparsed.root), ["Root", "", "real"]);
+});
+
+test("an unclosed fence node is closed on emission (mid-tree safe)", () => {
+  const root = createNode("Root");
+  const section = createNode("Section");
+  attachChild(root, section, 0);
+  attachChild(section, createNode("```js\ncode"), 0);
+  attachChild(section, createNode("after"), 1);
+  const pass1 = serializeBody(root);
+  // The fence gains a closing line, so "after" is NOT swallowed on reparse.
+  const reparsed = parseBody(pass1, "Root");
+  assert.equal(serializeBody(reparsed.root), pass1, "self-check must pass");
+  assert.deepEqual(flatTexts(reparsed.root), ["Root", "Section", "```js\ncode\n```", "after"]);
+});
+
+test("text starting with ``` but not one pure fence is split as bullets", () => {
+  const root = createNode("Root");
+  const section = createNode("Section");
+  attachChild(root, section, 0);
+  attachChild(section, createNode("```js\na\n```\nextra"), 0);
+  const pass1 = serializeBody(root);
+  const reparsed = parseBody(pass1, "Root");
+  assert.equal(serializeBody(reparsed.root), pass1, "must stay idempotent");
+  // Every line survives as literal bullet text — nothing swallowed.
+  const texts = flatTexts(reparsed.root);
+  for (const piece of ["```js", "a", "```", "extra"]) {
+    assert.ok(texts.includes(piece), `line "${piece}" must survive`);
+  }
+});
