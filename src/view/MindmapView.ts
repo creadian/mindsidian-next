@@ -295,6 +295,27 @@ export class MindmapView extends TextFileView {
     const current = viewport.transform.scale;
     if (current > 0 && target !== current) viewport.zoomAtCenter(target / current);
     controller.focusKeyboard();
+
+    // Plugin reload (e.g. a BRAT update) re-creates the view while node
+    // measurements are still settling, so the recenter above can aim at
+    // bogus bounds and leave the whole map off-screen. One delayed check:
+    // if NOTHING is visible, recenter again — a deliberate user pan always
+    // leaves part of the map visible, so this can never fight the user.
+    window.setTimeout(() => {
+      const lay = renderer.getLayout();
+      const container = controller.containerEl;
+      if (!lay || !container.isConnected) return;
+      const t = viewport.transform;
+      const x1 = t.x + lay.bounds.minX * t.scale;
+      const x2 = t.x + lay.bounds.maxX * t.scale;
+      const y1 = t.y + lay.bounds.minY * t.scale;
+      const y2 = t.y + lay.bounds.maxY * t.scale;
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      if (x2 < 0 || x1 > w || y2 < 0 || y1 > h) {
+        viewport.recenter(lay.bounds, false);
+      }
+    }, 300);
   }
 
   /** The single save funnel: every committed mutation lands here. */
