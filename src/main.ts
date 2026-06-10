@@ -107,7 +107,18 @@ export default class MindsidianNextPlugin extends Plugin {
     if (!file || this.fileModes.get(file.path) === "markdown") return;
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
     if (!frontmatter || frontmatter["mindmap-plugin"] == null) return;
-    void this.setMindmapView(leaf, file.path, false);
+    // Deferred + re-validated: this event can fire from inside Obsidian's
+    // own async leaf handling (e.g. its deleted-file recovery restoring the
+    // previous file). Swapping the view synchronously there mutates the
+    // leaf mid-flight and crashes Obsidian's handler. One tick later, and
+    // only if the leaf is still attached and still shows the same file.
+    window.setTimeout(() => {
+      const v = leaf.view;
+      if (!leaf.parent || !(v instanceof MarkdownView)) return;
+      if (v.file?.path !== file.path) return;
+      if (this.fileModes.get(file.path) === "markdown") return;
+      void this.setMindmapView(leaf, file.path, false);
+    }, 0);
   }
 
   /** Switch a leaf to the mindmap view and remember the choice. */
