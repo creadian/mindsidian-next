@@ -267,7 +267,10 @@ export class MindmapView extends TextFileView {
     });
     this.pointer = new PointerController(this.controller, world);
     this.pointer.attach();
-    this.keyboard = new KeyboardController(this.controller);
+    this.keyboard = new KeyboardController(
+      this.controller,
+      () => this.app.workspace.getActiveViewOfType(MindmapView) === this
+    );
     this.keyboard.attach();
     this.palette = new HighlightPalette(this.controller);
     if (Platform.isMobile) {

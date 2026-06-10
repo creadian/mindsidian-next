@@ -1,9 +1,14 @@
-// Keyboard input (design §1 Stage C): ONE keydown listener on the view's
-// container — never on document, no isFocused heuristics (kills the v1
-// focus-grace-timer bug family). The controller's hidden focus anchor keeps
-// keystrokes flowing here after every commit, so rapid Enter-Enter / Tab-Tab
-// chains never drop. Arrow keys use the pure spatial navigator and NEVER
-// pan the viewport (B2 fix).
+// Keyboard input (design §1 Stage C): ONE keydown listener per view on the
+// view's document (ownerDocument — popout-safe). It CANNOT be on the
+// container element: Obsidian's global focus management blurs arbitrary
+// in-view elements (observed: app.js calls blur() on our focus anchor within
+// ~50ms), after which a container-scoped listener never hears another key.
+// v1 used a document listener for the same reason. Isolation between views
+// comes from explicit guards instead of DOM focus:
+//   1. only handle keys when THIS view is the active one (isActive callback),
+//   2. only when the key targets our container, the body, or our inline
+//      editor — never inputs/editors belonging to other panes or modals.
+// Arrow keys use the pure spatial navigator and NEVER pan the viewport (B2).
 
 import type { MindmapController } from "../view/controller";
 import { navigate, ArrowDirection } from "./navigate";
@@ -18,22 +23,34 @@ const ARROWS: Record<string, ArrowDirection> = {
 export class KeyboardController {
   private controller: MindmapController;
   private containerEl: HTMLElement;
+  private isActive: () => boolean;
   private onKeyDown = (e: KeyboardEvent): void => this.handleKeyDown(e);
 
-  constructor(controller: MindmapController) {
+  constructor(controller: MindmapController, isActive: () => boolean) {
     this.controller = controller;
     this.containerEl = controller.containerEl;
+    this.isActive = isActive;
   }
 
   attach(): void {
-    this.containerEl.addEventListener("keydown", this.onKeyDown);
+    this.containerEl.ownerDocument.addEventListener("keydown", this.onKeyDown);
   }
 
   destroy(): void {
-    this.containerEl.removeEventListener("keydown", this.onKeyDown);
+    this.containerEl.ownerDocument.removeEventListener("keydown", this.onKeyDown);
+  }
+
+  /** True when this keystroke belongs to this mindmap view (see header). */
+  private claims(e: KeyboardEvent): boolean {
+    if (!this.isActive()) return false;
+    const t = e.target as HTMLElement | null;
+    if (!t || t === this.containerEl.ownerDocument.body) return true;
+    if (this.containerEl.contains(t)) return true;
+    return false; // a modal input, another pane's editor, a rename field, …
   }
 
   private handleKeyDown(e: KeyboardEvent): void {
+    if (!this.claims(e)) return;
     const c = this.controller;
     const mod = e.metaKey || e.ctrlKey;
 
