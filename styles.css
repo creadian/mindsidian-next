@@ -76,8 +76,9 @@
   color: var(--text-normal);
   font-size: var(--font-text-size, 16px);
   line-height: 1.35;
-  /* Skip rendering work for far-offscreen nodes (B3 performance fix). */
-  content-visibility: auto;
+  /* NOTE: do NOT add content-visibility:auto here — it implies paint
+     containment, which clips the fold dot (positioned outside the node box)
+     and makes it unclickable. */
   cursor: default;
 }
 
