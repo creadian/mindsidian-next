@@ -191,3 +191,42 @@ test("undo/redo round-trips the whole stack to a deep-equal tree", () => {
   }
   assert.equal(treesEqual(root, after), true);
 });
+
+test("undo of a BACKWARD same-parent move restores the original order", () => {
+  const { ctx, root } = makeTree();
+  const history = new History(ctx);
+  // Move B (index 1) up to index 0 — controller 'move node up'.
+  history.execute(new MoveNodeCommand("bbbbbbbb-0000-0000", "00000000-0000-0000", 0));
+  assert.deepEqual(root.children.map((c) => c.text), ["B", "A"]);
+  history.undo();
+  assert.deepEqual(root.children.map((c) => c.text), ["A", "B"]);
+});
+
+test("undo of a wrap-around move restores the original order", () => {
+  const { ctx, root } = makeTree();
+  const history = new History(ctx);
+  // Move A1 (index 0) 'up' with wrap-around → end of list (moveNode
+  // counts the slot before removal, so the controller passes to + 1).
+  history.execute(new MoveNodeCommand("aaaaaaaa-1111-0000", "aaaaaaaa-0000-0000", 2));
+  const a = root.children[0];
+  assert.deepEqual(a.children.map((c) => c.text), ["A2", "A1"]);
+  history.undo();
+  assert.deepEqual(a.children.map((c) => c.text), ["A1", "A2"]);
+});
+
+test("undo of a drag 'before' an earlier sibling restores the order", () => {
+  const { ctx, root } = makeTree();
+  const a = root.children[0];
+  attachChild(a, createNode("A3", { id: "aaaaaaaa-3333-0000" }), 2, ctx.index);
+  const history = new History(ctx);
+  // Drag A3 (index 2) to before A1 (index 0) within the same parent.
+  history.execute(new MoveNodeCommand("aaaaaaaa-3333-0000", "aaaaaaaa-0000-0000", 0));
+  assert.deepEqual(a.children.map((c) => c.text), ["A3", "A1", "A2"]);
+  history.undo();
+  assert.deepEqual(a.children.map((c) => c.text), ["A1", "A2", "A3"]);
+  // Redo + undo again stays correct (index map kept consistent).
+  history.redo();
+  assert.deepEqual(a.children.map((c) => c.text), ["A3", "A1", "A2"]);
+  history.undo();
+  assert.deepEqual(a.children.map((c) => c.text), ["A1", "A2", "A3"]);
+});

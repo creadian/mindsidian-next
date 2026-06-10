@@ -98,7 +98,12 @@ export class MoveNodeCommand implements Command {
     moveNode(node, target, this.newIndex);
   }
   revert(ctx: TreeContext): void {
-    moveNode(nodeOf(ctx, this.nodeId), nodeOf(ctx, this.oldParentId), this.oldIndex);
+    // Detach first, then splice at the recorded ABSOLUTE index. Using
+    // moveNode here would double-apply its same-parent "slot before
+    // removal" adjustment and leave backward moves in the wrong order.
+    const node = nodeOf(ctx, this.nodeId);
+    detachChild(node, ctx.index);
+    attachChild(nodeOf(ctx, this.oldParentId), node, this.oldIndex, ctx.index);
   }
 }
 
