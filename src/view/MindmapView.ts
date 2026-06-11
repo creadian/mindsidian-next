@@ -54,6 +54,8 @@ export class MindmapView extends TextFileView {
   private initialZoomPct = 100;
   /** True while committed edits are waiting on the debounced save. */
   private savePending = false;
+  /** Zoom captured by teardown() for onUnloadFile's frontmatter write. */
+  private parkedZoom: number | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: MindsidianNextPlugin) {
     super(leaf);
@@ -190,7 +192,11 @@ export class MindmapView extends TextFileView {
   /** Capture zoom BEFORE the stack is torn down, write it after the save
    *  flush — and only when it actually changed (contract T22 / E12). */
   async onUnloadFile(file: TFile): Promise<void> {
-    const zoom = this.pendingZoomWrite();
+    // teardown() may already have run (Obsidian's ordering varies) — in
+    // that case pendingZoomWrite() sees no viewport and the parked value
+    // from teardown carries the zoom across.
+    const zoom = this.pendingZoomWrite() ?? this.parkedZoom;
+    this.parkedZoom = null;
     await super.onUnloadFile(file); // flushes any pending debounced save
     if (zoom !== null) {
       try {
@@ -212,7 +218,7 @@ export class MindmapView extends TextFileView {
 
   /** Parse `data` and stand up the full render + interaction stack. */
   private rebuild(data: string): void {
-    this.teardown();
+    this.teardown(false); // external text wins over an in-flight edit
     const file = this.file;
     const basename = file?.basename ?? "Untitled";
 
@@ -337,6 +343,24 @@ export class MindmapView extends TextFileView {
     if (this.saveBlocked) return;
     const text = serializeDocument(controller.doc, this.modelSettings);
     if (text !== this.data) {
+      // Adopt the new text into this.data NOW (after the same self-check
+      // getViewData uses) — not only at save time. Obsidian tears the
+      // controller down before the unload flush on a view toggle, and
+      // getViewData's controller-gone fallback returns this.data; if that
+      // were still the pre-edit text, an "edit then toggle immediately"
+      // would silently lose the edit (observed live, 2026-06-11).
+      const reparsed = parseDocument(text, this.file?.basename ?? "");
+      const second = reparsed.ok
+        ? serializeDocument(reparsed.doc, this.modelSettings)
+        : null;
+      if (second !== text) {
+        console.error("Mindsidian Next: self-check failed on tree change", { text, second });
+        new Notice(
+          "Mindsidian Next: this change does not serialize cleanly — it stays on screen but will NOT be saved."
+        );
+        return;
+      }
+      this.data = text;
       this.savePending = true;
       this.requestSave();
     }
@@ -433,7 +457,27 @@ export class MindmapView extends TextFileView {
 
   // -------------------------------------------------------------- teardown
 
-  private teardown(): void {
+  /**
+   * Obsidian can run onClose/clear() BEFORE the unload save-flush calls
+   * getViewData (observed live: controller already null inside
+   * onUnloadFile). Anything living only in the interaction stack must be
+   * captured here, not at flush time: an in-flight inline edit is
+   * committed (which refreshes this.data via onTreeChanged), and the
+   * current zoom is parked for onUnloadFile's frontmatter write.
+   * `commitInFlight` is false on the rebuild path — an external file
+   * change wins over an open edit (disk is the source of truth) and the
+   * user gets the existing Notice instead of a silent overwrite.
+   */
+  private teardown(commitInFlight = true): void {
+    if (commitInFlight && this.controller?.editor.isEditing) {
+      try {
+        this.controller.commitEdit();
+      } catch (error) {
+        console.error("Mindsidian Next: commit-on-teardown failed", error);
+      }
+    }
+    const zoom = this.pendingZoomWrite();
+    if (zoom !== null) this.parkedZoom = zoom;
     this.mobileBar?.destroy();
     this.palette?.destroy();
     this.keyboard?.destroy();
