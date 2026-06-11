@@ -225,6 +225,18 @@ export class MindmapController {
         newText = flat;
       }
     }
+    // An empty childless non-root node is almost always an abandoned add —
+    // and at heading depth it has no stable markdown form (keeping it would
+    // demote the WHOLE sibling group from headings to bullets on save,
+    // restructuring the user's document). Outliner convention: remove it.
+    const edited = this.ctx.index.get(result.nodeId);
+    const finalText = newText !== null ? newText : (edited?.text ?? "");
+    if (edited && edited.parent && finalText === "" && edited.children.length === 0) {
+      const parentId = edited.parent.id;
+      this.execute(new RemoveNodeCommand(edited.id));
+      this.select(parentId);
+      return;
+    }
     if (newText !== null) {
       this.execute(new ChangeTextCommand(result.nodeId, newText));
     } else {
@@ -238,6 +250,15 @@ export class MindmapController {
     const id = this.editor.cancel();
     if (!id) return;
     this.renderer.invalidateNode(id);
+    // Escape on a node that was empty before the edit (a just-added child)
+    // abandons it — same removal rule as commitEdit, same reasons.
+    const node = this.ctx.index.get(id);
+    if (node && node.parent && node.text === "" && node.children.length === 0) {
+      const parentId = node.parent.id;
+      this.execute(new RemoveNodeCommand(id));
+      this.select(parentId);
+      return;
+    }
     void this.refresh();
     this.focusKeyboard();
   }
