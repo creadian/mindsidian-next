@@ -34,7 +34,7 @@ export class MobileActionBar {
       { icon: "↶", label: "Undo", action: () => this.c.undo() },
       { icon: "↷", label: "Redo", action: () => this.c.redo() },
       // Delete stays visible during multi-select (owner wishlist #7).
-      { icon: "🗑", label: "Delete", hideOnRoot: true, action: () => this.c.deleteSelection() },
+      { icon: "🗑", label: "Delete", hideOnRoot: true, action: () => this.deleteWithConfirm() },
       { icon: "🖍", label: "Highlight", action: () => palette.toggle() },
       { icon: "⌖", label: "Recenter", action: () => this.c.recenter() },
     ];
@@ -71,6 +71,38 @@ export class MobileActionBar {
     this.el.remove();
   }
 
+  /** Armed state of the delete button (tap-again-to-confirm, branches). */
+  private deleteArmedUntil = 0;
+
+  /** Deleting a BRANCH (anything with children) needs a second tap within
+   *  2.5s — one fat-finger on the bar used to wipe a whole subtree.
+   *  Leaves still delete immediately (undo covers those). */
+  private deleteWithConfirm(): void {
+    const targets = this.c.selectedTopNodes();
+    if (targets.length === 0) return;
+    const hasBranch = targets.some((n) => n.children.length > 0);
+    const btn = this.buttons.find((b) => b.spec.label === "Delete")?.el;
+    const disarm = (): void => {
+      this.deleteArmedUntil = 0;
+      btn?.classList.remove("mn-confirm");
+      if (btn) btn.textContent = "🗑";
+    };
+    if (!hasBranch || Date.now() < this.deleteArmedUntil) {
+      disarm();
+      this.c.deleteSelection();
+      return;
+    }
+    this.deleteArmedUntil = Date.now() + 2500;
+    if (btn) {
+      btn.classList.add("mn-confirm");
+      btn.textContent = "❗";
+      this.el.ownerDocument.defaultView?.setTimeout(() => {
+        if (Date.now() >= this.deleteArmedUntil) disarm();
+      }, 2600);
+    }
+    this.c.notify("Deleting a whole branch — tap again to confirm.");
+  }
+
   /** Hide root-only-unsafe buttons when the root is the selection. */
   private updateButtons(): void {
     const primary = this.c.primaryNode;
@@ -88,8 +120,18 @@ export class MobileActionBar {
     // How much of the layout viewport the keyboard (or browser chrome)
     // covers at the bottom right now.
     const covered = win.innerHeight - vv.height - vv.offsetTop;
+    // Keyboard up: sit DIRECTLY above it (small gap). The configured
+    // bottom offset exists to clear Obsidian's navbar — which iOS hides
+    // while typing, so stacking offset + keyboard height put the bar
+    // absurdly high. Keyboard down: the CSS bottom rule alone positions.
+    const KEYBOARD_GAP = 8;
+    let lift = 0;
+    if (covered > 0) {
+      const baseBottom = parseFloat(win.getComputedStyle(this.el).bottom) || 0;
+      lift = Math.max(0, covered + KEYBOARD_GAP - baseBottom);
+    }
     // Compose via CSS var — writing style.transform here clobbered the
     // scale(var(--mn-bar-scale)) rule, so the size setting never worked.
-    this.el.style.setProperty("--mn-bar-lift", `${-Math.max(0, covered)}px`);
+    this.el.style.setProperty("--mn-bar-lift", `${-lift}px`);
   }
 }

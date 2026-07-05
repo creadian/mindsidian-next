@@ -74,8 +74,15 @@ export class HighlightPalette {
     const btn = doc.createElement("button");
     btn.className = hex ? "mn-palette-swatch" : "mn-palette-clear";
     btn.setAttribute("aria-label", label);
-    if (hex) btn.style.setProperty("--mn-swatch-color", hex);
-    else btn.textContent = "×";
+    if (hex) {
+      // Inline backgroundColor, not only the CSS var — Obsidian mobile's
+      // own button background rules outranked the class rule, leaving
+      // the swatches gray on the phone.
+      btn.style.setProperty("--mn-swatch-color", hex);
+      btn.style.backgroundColor = hex;
+    } else {
+      btn.textContent = "×";
+    }
     // pointerdown (not click) so an in-flight edit keeps its focus/keyboard.
     btn.addEventListener("pointerdown", (e) => {
       e.preventDefault();

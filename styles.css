@@ -460,6 +460,12 @@
   transform-origin: bottom center;
 }
 
+/* Delete button armed state (tap-again-to-confirm for branches). */
+.mn-mobile-btn.mn-confirm {
+  background: var(--background-modifier-error, #e93147);
+  color: #fff;
+}
+
 /* Parse-failure read-only panel (refuse-to-corrupt guard). */
 .mn-error-panel {
   max-width: 480px;
