@@ -6,7 +6,7 @@
 // No module-level state: everything lives on this instance.
 
 import type { MindDocument, MindNode, ModelSettings } from "../model/types";
-import { createNode, depthOf, walk } from "../model/tree";
+import { createNode, depthOf, planGroupMove, walk } from "../model/tree";
 import {
   AddNodeCommand,
   ChangeTextCommand,
@@ -21,6 +21,7 @@ import {
 } from "../model/commands";
 import type { InlineMarker } from "../model/format";
 import { applyHighlight, stripHighlight, toggleMarker } from "../model/format";
+import { normalizeBulletText } from "../model/parse";
 import { buildIndex } from "../model/tree";
 import type { MindmapRenderer } from "./render";
 import type { Viewport } from "./viewport";
@@ -45,7 +46,7 @@ export class MindmapController {
   readonly editor = new NodeEditor();
   readonly renderer: MindmapRenderer;
   readonly viewport: Viewport;
-  readonly modelSettings: ModelSettings;
+  modelSettings: ModelSettings;
   readonly containerEl: HTMLElement;
   private readonly callbacks: ControllerCallbacks;
 
@@ -60,6 +61,11 @@ export class MindmapController {
   private selectionListeners: Array<() => void> = [];
   /** True once the user has actually edited (gates synthesized-root saves). */
   hasEdits = false;
+  /** Id of a node created by addChild/addSiblingBelow whose FIRST edit is
+   *  still open. Only such a node may be auto-removed when the edit ends
+   *  empty — a pre-existing empty node in the file is user data (EC:
+   *  Escape on it used to DELETE it from the file). */
+  private newlyAddedId: string | null = null;
 
   constructor(options: {
     doc: MindDocument;
@@ -99,16 +105,27 @@ export class MindmapController {
     this.applySelectionClasses(); // re-applied in case views were recreated
   }
 
-  /** Run a command as one undoable step, then re-render + notify. */
-  execute(command: Command): void {
+  /** Run a command as one undoable step, then re-render + notify.
+   *  `countsAsEdit: false` (fold toggles outside markdown persistence)
+   *  keeps hasEdits untouched so a forced save cannot normalize a file
+   *  the user never edited (contract §1.5: a fold toggle in non-markdown
+   *  mode must not touch the file). */
+  execute(command: Command, opts?: { countsAsEdit?: boolean }): void {
     this.history.execute(command);
-    this.hasEdits = true;
+    if (opts?.countsAsEdit !== false) this.hasEdits = true;
     void this.refresh();
     this.callbacks.onTreeChanged();
   }
 
   notify(message: string): void {
     this.callbacks.notify?.(message);
+  }
+
+  /** Settings changed mid-session: refresh the frozen snapshot so guards
+   *  (e.g. cycleTask's heading check) judge against the CURRENT headLevel,
+   *  not the one from view construction. */
+  updateModelSettings(settings: ModelSettings): void {
+    this.modelSettings = settings;
   }
 
   openLink(linkText: string, newPane: boolean): void {
@@ -225,13 +242,29 @@ export class MindmapController {
         newText = flat;
       }
     }
-    // An empty childless non-root node is almost always an abandoned add —
-    // and at heading depth it has no stable markdown form (keeping it would
-    // demote the WHOLE sibling group from headings to bullets on save,
-    // restructuring the user's document). Outliner convention: remove it.
+    // Normalize non-root text to its parse-stable form (EC10a): text
+    // beginning with a list marker would serialize to a line the parser
+    // rewrites, making the save self-check fail on EVERY save — the whole
+    // session's edits would silently never reach disk.
+    if (newText !== null && result.nodeId !== this.ctx.root.id) {
+      const norm = normalizeBulletText(newText);
+      if (norm !== newText) {
+        this.notify("Leading list marker removed — it cannot be stored as node text.");
+        newText = norm;
+      }
+    }
+    // An empty childless node whose FIRST edit ended empty is an abandoned
+    // add — remove it (outliner convention). Pre-existing empty nodes are
+    // file content and stay (their heading-depth form is handled by the
+    // serializer's sibling-group demotion).
     const edited = this.ctx.index.get(result.nodeId);
+    const wasJustAdded = this.newlyAddedId === result.nodeId;
+    this.newlyAddedId = null;
     const finalText = newText !== null ? newText : (edited?.text ?? "");
-    if (edited && edited.parent && finalText === "" && edited.children.length === 0) {
+    if (
+      wasJustAdded &&
+      edited && edited.parent && finalText === "" && edited.children.length === 0
+    ) {
       const parentId = edited.parent.id;
       this.execute(new RemoveNodeCommand(edited.id));
       this.select(parentId);
@@ -250,10 +283,12 @@ export class MindmapController {
     const id = this.editor.cancel();
     if (!id) return;
     this.renderer.invalidateNode(id);
-    // Escape on a node that was empty before the edit (a just-added child)
-    // abandons it — same removal rule as commitEdit, same reasons.
+    // Escape on a JUST-ADDED empty child abandons it — same removal rule
+    // as commitEdit. A pre-existing empty node stays: it is file content.
     const node = this.ctx.index.get(id);
-    if (node && node.parent && node.text === "" && node.children.length === 0) {
+    const wasJustAdded = this.newlyAddedId === id;
+    this.newlyAddedId = null;
+    if (wasJustAdded && node && node.parent && node.text === "" && node.children.length === 0) {
       const parentId = node.parent.id;
       this.execute(new RemoveNodeCommand(id));
       this.select(parentId);
@@ -292,6 +327,7 @@ export class MindmapController {
     this.execute(new AddNodeCommand(ref.parent.id, index, node));
     this.selection.select(node.id);
     this.beginEdit(node.id);
+    this.newlyAddedId = node.id;
   }
 
   /** Tab: new empty child of the current node (auto-expands a folded one). */
@@ -304,6 +340,7 @@ export class MindmapController {
     this.execute(new CompositeCommand(commands));
     this.selection.select(node.id);
     this.beginEdit(node.id);
+    this.newlyAddedId = node.id;
   }
 
   /** Delete the selection (pruned to top ancestors) as one history step. */
@@ -388,25 +425,35 @@ export class MindmapController {
     this.select(node.id);
   }
 
-  /** Drop commit from drag-to-reparent: move a group as ONE history step. */
+  /** Drop commit from drag-to-reparent: move a group as ONE history step.
+   *  Indices are computed by SIMULATING each move on a copy of the sibling
+   *  list — the naive "base + i" scheme reads positions from the pre-move
+   *  array while the commands mutate the real one sequentially, which
+   *  scrambled multi-select reorders (A B C D E, move [B,C] after D used
+   *  to yield A D B E C). The simulation mirrors moveNode()'s semantics:
+   *  index counts the slot BEFORE removal, same-parent forward moves -1. */
   moveNodes(
     nodes: MindNode[],
     target: MindNode,
     kind: "child" | "before" | "after"
   ): void {
     const commands: Command[] = [];
-    if (kind === "child") {
-      if (target.collapsed) commands.push(new SetCollapsedCommand(target.id, false));
-      nodes.forEach((n, i) =>
-        commands.push(new MoveNodeCommand(n.id, target.id, target.children.length + i))
-      );
-    } else {
-      const parent = target.parent;
-      if (!parent) return; // no siblings beside the root
-      const base = parent.children.indexOf(target) + (kind === "after" ? 1 : 0);
-      nodes.forEach((n, i) =>
-        commands.push(new MoveNodeCommand(n.id, parent.id, base + i))
-      );
+    const parent = kind === "child" ? target : target.parent;
+    if (!parent) return; // no siblings beside the root
+    if (kind === "child" && target.collapsed) {
+      commands.push(new SetCollapsedCommand(target.id, false));
+    }
+    // First node lands after `anchor` (null = at the very start / before
+    // target); each moved node then becomes the anchor for the next.
+    const siblings = parent.children;
+    const anchor: MindNode | null =
+      kind === "child"
+        ? siblings[siblings.length - 1] ?? null
+        : kind === "after"
+          ? target
+          : siblings[siblings.indexOf(target) - 1] ?? null;
+    for (const step of planGroupMove(parent, nodes, anchor)) {
+      commands.push(new MoveNodeCommand(step.node.id, parent.id, step.index));
     }
     if (commands.length === 0) return;
     this.execute(new CompositeCommand(commands));
@@ -418,7 +465,14 @@ export class MindmapController {
   toggleFold(id: string): void {
     const node = this.ctx.index.get(id);
     if (!node || !node.parent || node.children.length === 0) return;
-    this.execute(new SetCollapsedCommand(id, !node.collapsed));
+    this.execute(new SetCollapsedCommand(id, !node.collapsed), {
+      countsAsEdit: this.foldTouchesMarkdown(),
+    });
+  }
+
+  /** Fold state only lives in the file in "markdown" persistence mode. */
+  private foldTouchesMarkdown(): boolean {
+    return this.modelSettings.foldStatePersistence === "markdown";
   }
 
   /** Deepest depth currently visible (not hidden under a collapsed node). */
@@ -444,7 +498,9 @@ export class MindmapController {
       }
     });
     if (commands.length === 0) return;
-    this.execute(new CompositeCommand(commands));
+    this.execute(new CompositeCommand(commands), {
+      countsAsEdit: this.foldTouchesMarkdown(),
+    });
     // Keep the selection visible: climb to the deepest still-visible ancestor.
     const primary = this.primaryNode;
     if (primary && depthOf(primary) > target) {
@@ -522,15 +578,25 @@ export class MindmapController {
 
   // ------------------------------------------------------------ clipboard
 
-  async copySelection(): Promise<void> {
+  /** Returns true when the payload actually reached the system clipboard. */
+  async copySelection(): Promise<boolean> {
     const nodes = this.selectedTopNodes();
-    if (nodes.length === 0) return;
+    if (nodes.length === 0) return false;
     const payload = encodeSubtrees(nodes);
-    if (payload) await writeClipboard(payload);
+    if (!payload) return false;
+    return writeClipboard(payload);
   }
 
+  /** Cut = copy + delete, but ONLY when the copy verifiably succeeded —
+   *  otherwise the nodes would be destroyed with nothing to paste back. */
   async cutSelection(): Promise<void> {
-    await this.copySelection();
+    const copied = await this.copySelection();
+    if (!copied) {
+      if (this.selectedTopNodes().length > 0) {
+        this.notify("Cut cancelled — could not write to the clipboard.");
+      }
+      return;
+    }
     this.deleteSelection();
   }
 
@@ -593,11 +659,12 @@ export class MindmapController {
 }
 
 // Clipboard IO kept tiny and failure-tolerant (clipboard.ts stays pure).
-async function writeClipboard(text: string): Promise<void> {
+async function writeClipboard(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
+    return true;
   } catch {
-    /* clipboard permission denied — non-fatal */
+    return false; // clipboard permission denied — caller decides
   }
 }
 
