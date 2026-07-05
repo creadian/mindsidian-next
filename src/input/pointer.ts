@@ -75,6 +75,24 @@ export class PointerController {
   private onPointerMove = (e: PointerEvent): void => this.handleMove(e);
   private onPointerUp = (e: PointerEvent): void => this.handleUp(e);
   private onPointerCancel = (): void => this.cancelAll();
+  // Touch shield (F1): the raw-touch stream runs in PARALLEL to pointer
+  // events, and Obsidian's own gesture recognizers (sidebar swipe,
+  // pull-down menu) listen to it — `touch-action: none` cannot reach
+  // them. Claim the stream: stopPropagation always; preventDefault only
+  // once a v2 gesture owns the touch (past slop / drag / marquee /
+  // pinch), so taps stay native and iOS click synthesis survives.
+  private onTouchStart = (e: TouchEvent): void => {
+    e.stopPropagation(); // claim; NEVER preventDefault here (kills iOS taps)
+  };
+  private onTouchMove = (e: TouchEvent): void => {
+    e.stopPropagation();
+    const gestureActive =
+      this.drag !== null ||
+      this.marquee !== null ||
+      (this.press?.moved ?? false) || // 1-finger pan past slop
+      e.touches.length > 1; // pinch (viewport's)
+    if (gestureActive) e.preventDefault();
+  };
 
 
   constructor(controller: MindmapController, worldEl: HTMLElement) {
@@ -90,6 +108,8 @@ export class PointerController {
     this.containerEl.addEventListener("pointermove", this.onPointerMove);
     this.containerEl.addEventListener("pointerup", this.onPointerUp);
     this.containerEl.addEventListener("pointercancel", this.onPointerCancel);
+    this.containerEl.addEventListener("touchstart", this.onTouchStart, { passive: true });
+    this.containerEl.addEventListener("touchmove", this.onTouchMove, { passive: false });
   }
 
   destroy(): void {
@@ -98,6 +118,8 @@ export class PointerController {
     this.containerEl.removeEventListener("pointermove", this.onPointerMove);
     this.containerEl.removeEventListener("pointerup", this.onPointerUp);
     this.containerEl.removeEventListener("pointercancel", this.onPointerCancel);
+    this.containerEl.removeEventListener("touchstart", this.onTouchStart);
+    this.containerEl.removeEventListener("touchmove", this.onTouchMove);
     this.c.cancelMarquee = null;
   }
 
