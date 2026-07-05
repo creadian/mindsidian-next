@@ -108,6 +108,15 @@
   padding: 2px 6px 3px;
 }
 
+/* Boxed node style (setting "Node style: boxed"): every deeper note gets
+   its own light box — like level one, but 1px and a touch subtler. */
+.mn-style-boxed .mn-node:not([data-depth="0"]):not([data-depth="1"]) {
+  background: var(--background-primary);
+  border: 1px solid var(--mn-branch-color, var(--interactive-accent));
+  border-radius: 6px;
+  padding: 3px 9px;
+}
+
 /* Markdown output normalization inside nodes: a node is one line of text,
    so strip the paragraph margins MarkdownRenderer adds. */
 .mn-node-content {

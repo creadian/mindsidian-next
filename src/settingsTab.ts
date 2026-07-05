@@ -145,6 +145,22 @@ export class MindsidianSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Node style")
+      .setDesc(
+        "Underline: deeper notes sit on a branch-colored line (classic). " +
+          "Boxed: every note gets its own light box, like the first level."
+      )
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions({ underline: "Underline (classic)", boxed: "Boxed" })
+          .setValue(s.nodeStyle)
+          .onChange(async (value) => {
+            s.nodeStyle = value === "boxed" ? "boxed" : "underline";
+            await this.plugin.saveSettingsAndApply();
+          })
+      );
+
+    new Setting(containerEl)
       .setName("Depth-scaled font")
       .setDesc("Slightly shrink text the deeper a node sits (CSS only).")
       .addToggle((toggle) =>

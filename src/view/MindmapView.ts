@@ -449,6 +449,10 @@ export class MindmapView extends TextFileView {
       "--mn-bar-bottom",
       `${this.plugin.settings.mobileBarBottomOffset}px`
     );
+    this.contentEl.classList.toggle(
+      "mn-style-boxed",
+      this.plugin.settings.nodeStyle === "boxed"
+    );
   }
 
   /** Zoom commands (anchored at the view center). */

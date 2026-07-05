@@ -30,6 +30,8 @@ export interface MindsidianNextSettings {
   branchColors: string[];
   /** CSS-only depth-scaled font (owner wishlist #5). */
   depthScaledFont: boolean;
+  /** Deep-node look: branch-colored underline (classic) or a light box. */
+  nodeStyle: "underline" | "boxed";
   /** After move commands, keep the moved node centered. */
   focusOnMove: boolean;
   /** Mobile action bar scale factor (1 = default size). */
@@ -56,6 +58,7 @@ export const DEFAULT_SETTINGS: MindsidianNextSettings = {
   subtreeGap: DEFAULT_LAYOUT_SETTINGS.subtreeGap,
   branchColors: [...DEFAULT_RENDER_SETTINGS.branchColors],
   depthScaledFont: false,
+  nodeStyle: "underline",
   focusOnMove: false,
   mobileBarScale: 1,
   mobileBarBottomOffset: 24,
@@ -90,6 +93,7 @@ export function mergeSettings(loaded: unknown): MindsidianNextSettings {
   if (!Array.isArray(merged.branchColors) || merged.branchColors.length === 0) {
     merged.branchColors = [...DEFAULT_SETTINGS.branchColors];
   }
+  if (merged.nodeStyle !== "boxed") merged.nodeStyle = "underline";
   if (typeof merged.foldStates !== "object" || merged.foldStates === null) {
     merged.foldStates = {};
   }
