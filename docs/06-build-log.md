@@ -323,3 +323,35 @@ breaking the save fixed point in plugin-data/none modes — fixed, stripped at
 normalize time); review 3: **SIGN-OFF: yes** (13 adversarial normalization
 cases + 30 fixed-point combinations across all three fold modes, no findings).
 Final state: 125/125 tests, 2.0.0-alpha.3 deployed to Claude_testing.
+
+---
+
+## 2026-07-05 — Christian's desktop feedback + mobile F1/F2/F3 round (alpha.4)
+
+Desktop (both reproduced/diagnosed live via the Obsidian CLI):
+- **Zoom shift**: anchor math verified exact (world origin = container +
+  transform to the pixel); the culprit was the RATE — 0.01/delta zooms
+  ~2.5× faster than v1, so each cursor-anchored step flings the content
+  mass sideways. Now 0.004 (~×1.2 per flick, v1 feel).
+- **New node clipped at the edge**: no reveal logic existed at all (the
+  "little move" was layout reflow; focus uses preventScroll). New
+  `controller.revealNode()` pans minimally (animated) to a 64px margin
+  after every beginEdit.
+
+Mobile (implemented from the red-team-vetted June designs; on-device
+verification by Christian still owed):
+- **F1 touch shield** (own commit for solo revert): stopPropagation on
+  touchstart/touchmove + preventDefault once a v2 gesture owns the touch.
+- **F2 drop targets**: elementFromPoint dropped for a pure nearest-rect
+  search over layout data (`src/input/dropTarget.ts`, unit-tested);
+  tolerances 60px touch / 24px mouse; v1 kind zones (side quarter =
+  child); sticky-commit contract unchanged. NOTE: desktop drop-kind
+  zones deliberately changed to v1 proportions — sanity-check mouse drag.
+- **F3 bar**: `mobileBarBottomOffset` setting (default 24px + safe area,
+  slider 0–120) and the keyboard-lift/scale transform clobber fixed
+  (`--mn-bar-lift` composes with `--mn-bar-scale` in one CSS rule).
+
+131/131 tests. iPhone checklist for F1 (all ten): pan mid-screen no
+sidebar · pan from left screen edge · pan down no pull-down · tap
+selects · double-tap edits + keyboard · long-press drag ghost · pinch
+zoom · bar buttons · fold dot + checkbox taps · desktop unchanged.
