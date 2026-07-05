@@ -315,3 +315,11 @@ last-writer-wins (Notice fires), EC10b 8-4-4-shaped text suffix, popout
 flush gap (EC3), numbered-list marker roundtrip, mobile F1/F2/F3 (need
 device testing). v1 + v2 must not be enabled together on the same vault —
 both auto-claim `mindmap-plugin: basic` files.
+
+**Codex sign-off chain (2026-07-05):** review 1 refused (3 gaps: per-line paste
+normalization, keyboard-zoom persistence, folder-aware fold-state re-keying —
+all real, all fixed); review 2 refused (1 gap: strict fold-id suffix text
+breaking the save fixed point in plugin-data/none modes — fixed, stripped at
+normalize time); review 3: **SIGN-OFF: yes** (13 adversarial normalization
+cases + 30 fixed-point combinations across all three fold modes, no findings).
+Final state: 125/125 tests, 2.0.0-alpha.3 deployed to Claude_testing.
