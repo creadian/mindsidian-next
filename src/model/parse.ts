@@ -154,6 +154,19 @@ function lex(body: string): Token[] {
   return tokens;
 }
 
+/**
+ * Normalize node text to exactly what one serialize→parse roundtrip would
+ * make of it (EC10a). A committed text starting with "- " would be emitted
+ * as "- - text", which the E7 chain collapse then rewrites — the save
+ * self-check fails forever and every subsequent edit is silently refused.
+ * Mirrors the bullet-line rules above verbatim: same regexes, same order.
+ */
+export function normalizeBulletText(text: string): string {
+  let t = `- ${text}`;
+  while (/^- - /.test(t)) t = t.replace(/^- /, "");
+  return t === "-" ? "" : t.replace(/^(?:[-*+]|\d+\.)\s+/, "");
+}
+
 /** Extract fold marker + task prefix from a bullet's text. */
 function extractBulletFields(raw: string): {
   text: string;

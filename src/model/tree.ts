@@ -111,6 +111,41 @@ export function moveNode(node: MindNode, newParent: MindNode, index: number): vo
   newParent.children.splice(at < 0 || at > max ? max : at, 0, node);
 }
 
+/** One step of a planned group move: node + the index to pass to moveNode. */
+export interface PlannedMove {
+  node: MindNode;
+  index: number;
+}
+
+/**
+ * Plan sequential move indices so `nodes` end up, in their given order,
+ * directly after `anchor` among `parent`'s children (anchor null = at the
+ * front). Each step simulates moveNode()'s semantics — index counts the
+ * slot BEFORE removal, same-parent forward moves shift by one — because
+ * the real commands mutate the sibling array sequentially. Reading all
+ * indices from the pre-move array scrambled multi-select reorders
+ * (A B C D E, move [B,C] after D used to produce A D B E C).
+ */
+export function planGroupMove(
+  parent: MindNode,
+  nodes: MindNode[],
+  anchor: MindNode | null
+): PlannedMove[] {
+  const sim = parent.children.slice();
+  const plan: PlannedMove[] = [];
+  let after = anchor;
+  for (const node of nodes) {
+    const oldIndex = sim.indexOf(node);
+    const index = after ? sim.indexOf(after) + 1 : 0;
+    plan.push({ node, index });
+    if (oldIndex >= 0) sim.splice(oldIndex, 1);
+    const at = oldIndex >= 0 && oldIndex < index ? index - 1 : index;
+    sim.splice(Math.min(at, sim.length), 0, node);
+    after = node;
+  }
+  return plan;
+}
+
 /** Deep copy of a subtree (fresh objects, same ids). */
 export function cloneSubtree(node: MindNode): MindNode {
   const copy = createNode(node.text, {

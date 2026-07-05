@@ -29,13 +29,19 @@ function isPureFence(text: string): boolean {
   return true;
 }
 
-/** A node with no possible heading line: empty text, or a whole code
- *  fence. Both shapes survive a reparse unchanged, so using them as the
+/** A node with no possible heading line: empty text, a whole code fence,
+ *  or a task checkbox (headings cannot carry [ ]/[x] — emitting one as a
+ *  heading silently destroys the task state, contract §1.5 / EC12). All
+ *  three shapes survive a reparse unchanged, so using them as the
  *  demotion trigger keeps serialization idempotent (the save self-check
  *  in the view depends on that). */
 function needsBulletForm(node: MindNode): boolean {
   const text = node.text;
-  return text.trim() === "" || (text.includes("\n") && isPureFence(text));
+  return (
+    node.task !== "none" ||
+    text.trim() === "" ||
+    (text.includes("\n") && isPureFence(text))
+  );
 }
 
 /** Serialize a tree to a markdown body (no frontmatter, no prefix). */

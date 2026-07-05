@@ -8,6 +8,7 @@
 
 import type { MindNode, TaskState } from "../model/types";
 import { createNode, newId } from "../model/tree";
+import { normalizeBulletText } from "../model/parse";
 
 interface ClipboardEntry {
   id: string;
@@ -72,7 +73,12 @@ function rebuild(entries: ClipboardEntry[]): MindNode | null {
       entry.taskState === "todo" || entry.taskState === "done"
         ? entry.taskState
         : "none";
-    const node = createNode(entry.text, { task, collapsed: entry.isExpand === false });
+    // Normalize pasted text like committed text (EC10a): a leading list
+    // marker would make every save fail its self-check after the paste.
+    const node = createNode(normalizeBulletText(entry.text), {
+      task,
+      collapsed: entry.isExpand === false,
+    });
     byOld.set(entry.id, node);
     const parent = entry.pid != null ? byOld.get(entry.pid) : undefined;
     if (parent) {
