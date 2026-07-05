@@ -371,3 +371,19 @@ Christian's on-device verdicts on alpha.4: zoom fixed · swipe shield works
 - New "Node style" setting: classic underline vs boxed (1px light boxes).
 Default bar offset stays 24 — Christian runs 60; revisit the default if
 his value proves universal.
+
+---
+
+## 2026-07-05 — Feedback round 3 (alpha.6): momentum glide + keyboard-hugging bar + delete confirm for all
+
+- **Momentum panning (touch)**: releasing a pan mid-swipe glides with
+  iOS-style exponential decay (τ=325ms; velocity from the last ~120ms of
+  samples; slow release = dead stop; flicks capped at 5px/ms; any new
+  touch catches the map). `Viewport.startInertia`/`stopGlide`.
+- **Bar while typing**: iOS resizes the webview under the keyboard, so
+  the visualViewport "covered" math read 0 and the bar sat a full offset
+  above the keyboard. A focusin/focusout-tracked `mn-kb-up` class now
+  drops it to an 8px gap while a contenteditable has focus (Obsidian's
+  navbar is hidden during typing, so the offset must not apply).
+- **Delete confirm**: extended from branches to EVERY delete (owner
+  request); armed state disarms on selection change.
