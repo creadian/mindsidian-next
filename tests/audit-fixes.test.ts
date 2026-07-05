@@ -68,6 +68,21 @@ test("normalizeBulletText: multi-line normalizes per line, fences untouched", ()
   assert.equal(normalizeBulletText(fence), fence);
 });
 
+test("normalizeBulletText: strict fold-id suffixes strip (metadata, not text)", () => {
+  assert.equal(normalizeBulletText("b ^aaaaaaaa-bbbb-cccc"), "b");
+  assert.equal(
+    normalizeBulletText("x ^aaaaaaaa-bbbb-cccc ^bbbbbbbb-cccc-dddd"),
+    "x"
+  );
+  // Non-8-4-4 user block refs are TEXT and must survive (contract B2).
+  assert.equal(normalizeBulletText("keep ^my-anchor"), "keep ^my-anchor");
+  // Fence: only the last line can carry the suffix; body stays byte-exact.
+  assert.equal(
+    normalizeBulletText("```js\ncode\n``` ^aaaaaaaa-bbbb-cccc"),
+    "```js\ncode\n```"
+  );
+});
+
 const CORPUS = [
   "- bar",
   "- - deep chain",
@@ -90,6 +105,12 @@ const CORPUS = [
   "- x\n- - y\nplain",
   "first\n\nlast",
   "```js\nif (x) {\n  y()\n}\n```",
+  // fold-id-shaped suffixes (Codex sign-off round 2): parse strips them
+  // as metadata, so they cannot survive as text in any fold mode.
+  "b ^aaaaaaaa-bbbb-cccc",
+  "x ^aaaaaaaa-bbbb-cccc ^bbbbbbbb-cccc-dddd",
+  "a\nb ^aaaaaaaa-bbbb-cccc",
+  "```js\ncode\n``` ^aaaaaaaa-bbbb-cccc",
 ];
 
 test("normalizeBulletText: idempotent over the corpus", () => {

@@ -173,14 +173,37 @@ export function normalizeBulletText(text: string): string {
   const pureFence =
     lines[0].trim().startsWith("```") &&
     lines.slice(1, -1).every((l) => !l.trim().startsWith("```"));
-  if (pureFence) return text;
+  if (pureFence) {
+    // Fence lines are emitted byte-exact — EXCEPT that a trailing strict
+    // fold-id suffix on the last line is stripped as metadata on reparse,
+    // so it cannot survive as text either.
+    const last = lines.length - 1;
+    lines[last] = stripFoldSuffix(lines[last], false);
+    return lines.join("\n");
+  }
   return lines.map((l) => normalizeBulletLine(l.trim())).join("\n");
 }
 
 function normalizeBulletLine(line: string): string {
   let t = `- ${line}`;
   while (/^- - /.test(t)) t = t.replace(/^- /, "");
-  return t === "-" ? "" : t.replace(/^(?:[-*+]|\d+\.)\s+/, "");
+  t = t === "-" ? "" : t.replace(/^(?:[-*+]|\d+\.)\s+/, "");
+  // A trailing " ^xxxxxxxx-xxxx-xxxx" (strict 8-4-4 hex) is fold METADATA
+  // to the parser, never text — keeping it in text makes the save fixed
+  // point fail in plugin-data/none fold modes (fold ids are suppressed on
+  // re-emission there, so the second pass differs).
+  return stripFoldSuffix(t, true);
+}
+
+/** Strip trailing strict fold-id suffixes to a fixed point, mirroring what
+ *  repeated parse passes would do (bullets also trim trailing space). */
+function stripFoldSuffix(line: string, trim: boolean): string {
+  let t = line;
+  for (let m = t.match(TRAILING_FOLD_ID); m; m = t.match(TRAILING_FOLD_ID)) {
+    t = t.slice(0, -m[0].length);
+    if (trim) t = t.trimEnd();
+  }
+  return t;
 }
 
 /** Extract fold marker + task prefix from a bullet's text. */

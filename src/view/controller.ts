@@ -249,7 +249,9 @@ export class MindmapController {
     if (newText !== null && result.nodeId !== this.ctx.root.id) {
       const norm = normalizeBulletText(newText);
       if (norm !== newText) {
-        this.notify("Leading list marker removed — it cannot be stored as node text.");
+        this.notify(
+          "Text adjusted — a leading list marker or trailing fold-id suffix cannot be stored as node text."
+        );
         newText = norm;
       }
     }
