@@ -66,6 +66,20 @@ export function mergeSettings(loaded: unknown): MindsidianNextSettings {
   merged.schemaVersion = DEFAULT_SETTINGS.schemaVersion;
   merged.headLevel = clampInt(merged.headLevel, 1, 6);
   merged.defaultZoom = clampInt(merged.defaultZoom, 20, 300);
+  // Every remaining numeric flows into layout/CSS — a hand-edited or
+  // corrupted data.json (0, negative, NaN) must not collapse the map.
+  merged.nodeMaxWidthDesktop = clampNum(
+    merged.nodeMaxWidthDesktop, 100, 4000, DEFAULT_SETTINGS.nodeMaxWidthDesktop
+  );
+  merged.nodeMaxWidthMobile = clampNum(
+    merged.nodeMaxWidthMobile, 100, 4000, DEFAULT_SETTINGS.nodeMaxWidthMobile
+  );
+  merged.levelGap = clampNum(merged.levelGap, 4, 400, DEFAULT_SETTINGS.levelGap);
+  merged.siblingGap = clampNum(merged.siblingGap, 0, 200, DEFAULT_SETTINGS.siblingGap);
+  merged.subtreeGap = clampNum(merged.subtreeGap, 0, 200, DEFAULT_SETTINGS.subtreeGap);
+  merged.mobileBarScale = clampNum(
+    merged.mobileBarScale, 0.5, 3, DEFAULT_SETTINGS.mobileBarScale
+  );
   if (!Array.isArray(merged.branchColors) || merged.branchColors.length === 0) {
     merged.branchColors = [...DEFAULT_SETTINGS.branchColors];
   }
@@ -73,6 +87,13 @@ export function mergeSettings(loaded: unknown): MindsidianNextSettings {
     merged.foldStates = {};
   }
   return merged;
+}
+
+/** Clamp a possibly-invalid numeric setting; non-finite → the default. */
+function clampNum(value: number, min: number, max: number, fallback: number): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
 }
 
 /** Frozen model-layer snapshot (what parse/serialize need). */

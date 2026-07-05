@@ -42,6 +42,11 @@ export class Viewport {
   // Animation state (recenter); cancelled by any new animation or gesture.
   private animationFrame = 0;
 
+  /** Fired on DELIBERATE zoom gestures (wheel-zoom, pinch) — never on
+   *  programmatic zoom/fit. The view uses it to gate the close-time
+   *  mindmap-zoom frontmatter write (contract E12). */
+  onUserZoom: (() => void) | null = null;
+
   // Bound handlers kept so destroy() can remove them.
   private onWheel = (e: WheelEvent): void => this.handleWheel(e);
   private onPointerDown = (e: PointerEvent): void => this.handlePointerDown(e);
@@ -200,6 +205,7 @@ export class Viewport {
     if (e.ctrlKey || e.metaKey) {
       // Trackpad pinch / Ctrl+wheel → zoom anchored at the cursor.
       const factor = Math.exp(-e.deltaY * 0.01);
+      this.onUserZoom?.();
       this.zoomAtClientPoint(e.clientX, e.clientY, factor);
     } else {
       // Two-finger scroll / wheel → pan.
@@ -237,6 +243,7 @@ export class Viewport {
     const scale = clampScale(
       this.pinch.startScale * (dist / this.pinch.startDist)
     );
+    this.onUserZoom?.();
     // Keep the fixed focal world point under the (moving) finger midpoint —
     // this gives focal-anchored zoom AND two-finger pan in one formula.
     const rect = this.container.getBoundingClientRect();

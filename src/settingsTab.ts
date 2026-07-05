@@ -28,7 +28,8 @@ export class MindsidianSettingTab extends PluginSettingTab {
       .setName("Max heading level")
       .setDesc(
         "Nodes above this depth are written as headings, deeper ones as bullets. " +
-          "Note: changing this re-serializes each mindmap file the next time it is saved."
+          "Note: changing this re-serializes each mindmap file the next time it is saved. " +
+          "Branches containing task checkboxes always stay in bullet form."
       )
       .addSlider((slider) =>
         slider
@@ -78,11 +79,11 @@ export class MindsidianSettingTab extends PluginSettingTab {
           })
       );
 
-    this.numberSetting(containerEl, "Level gap", "Horizontal space between a parent and its children (px).", s.levelGap, DEFAULT_SETTINGS.levelGap, async (v) => { s.levelGap = v; });
-    this.numberSetting(containerEl, "Sibling gap", "Vertical space between neighboring nodes (px).", s.siblingGap, DEFAULT_SETTINGS.siblingGap, async (v) => { s.siblingGap = v; });
-    this.numberSetting(containerEl, "Subtree gap", "Extra vertical space between separate branches (px).", s.subtreeGap, DEFAULT_SETTINGS.subtreeGap, async (v) => { s.subtreeGap = v; });
-    this.numberSetting(containerEl, "Node max width (desktop)", "Widest a node may grow before wrapping (px).", s.nodeMaxWidthDesktop, DEFAULT_SETTINGS.nodeMaxWidthDesktop, async (v) => { s.nodeMaxWidthDesktop = v; });
-    this.numberSetting(containerEl, "Node max width (mobile)", "Widest a node may grow before wrapping on phones (px).", s.nodeMaxWidthMobile, DEFAULT_SETTINGS.nodeMaxWidthMobile, async (v) => { s.nodeMaxWidthMobile = v; });
+    this.numberSetting(containerEl, "Level gap", "Horizontal space between a parent and its children (px).", s.levelGap, 4, async (v) => { s.levelGap = v; });
+    this.numberSetting(containerEl, "Sibling gap", "Vertical space between neighboring nodes (px).", s.siblingGap, 0, async (v) => { s.siblingGap = v; });
+    this.numberSetting(containerEl, "Subtree gap", "Extra vertical space between separate branches (px).", s.subtreeGap, 0, async (v) => { s.subtreeGap = v; });
+    this.numberSetting(containerEl, "Node max width (desktop)", "Widest a node may grow before wrapping (px).", s.nodeMaxWidthDesktop, 100, async (v) => { s.nodeMaxWidthDesktop = v; });
+    this.numberSetting(containerEl, "Node max width (mobile)", "Widest a node may grow before wrapping on phones (px).", s.nodeMaxWidthMobile, 100, async (v) => { s.nodeMaxWidthMobile = v; });
 
     // ------------------------------------------------------------- behavior
     new Setting(containerEl).setName("Behavior").setHeading();
@@ -171,13 +172,16 @@ export class MindsidianSettingTab extends PluginSettingTab {
       );
   }
 
-  /** Small helper: a numeric text field with a default fallback. */
+  /** Small helper: a numeric text field with a minimum bound. Empty or
+   *  invalid input (incl. mid-typing states) keeps the current value —
+   *  clearing the field used to apply 0 live and PERSIST it, collapsing
+   *  the whole map (the settings "zero-trap"). */
   private numberSetting(
     containerEl: HTMLElement,
     name: string,
     desc: string,
     current: number,
-    fallback: number,
+    min: number,
     set: (value: number) => Promise<void> | void
   ): void {
     new Setting(containerEl)
@@ -185,8 +189,10 @@ export class MindsidianSettingTab extends PluginSettingTab {
       .setDesc(desc)
       .addText((text) =>
         text.setValue(String(current)).onChange(async (value) => {
+          if (value.trim() === "") return; // mid-edit: keep current value
           const n = Number(value);
-          await set(Number.isFinite(n) && n >= 0 ? n : fallback);
+          if (!Number.isFinite(n)) return; // garbage: keep current value
+          await set(Math.max(min, n));
           await this.plugin.saveSettingsAndApply();
         })
       );

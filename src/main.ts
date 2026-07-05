@@ -43,8 +43,32 @@ export default class MindsidianNextPlugin extends Plugin {
     this.settings = mergeSettings(await this.loadData());
 
     this.registerView(MINDMAP_VIEW_TYPE, (leaf) => new MindmapView(leaf, this));
+    this.registerHoverLinkSource(MINDMAP_VIEW_TYPE, {
+      display: "Mindsidian Next",
+      defaultMod: true,
+    });
     this.addSettingTab(new MindsidianSettingTab(this.app, this));
     registerCommands(this);
+
+    // plugin-data fold state is keyed by file path — follow renames and
+    // drop deleted files, or stale keys could later attach to an unrelated
+    // file created at the same path.
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        const paths = this.settings.foldStates[oldPath];
+        if (!paths) return;
+        delete this.settings.foldStates[oldPath];
+        this.settings.foldStates[file.path] = paths;
+        this.saveFoldStates();
+      })
+    );
+    this.registerEvent(
+      this.app.vault.on("delete", (file) => {
+        if (!this.settings.foldStates[file.path]) return;
+        delete this.settings.foldStates[file.path];
+        this.saveFoldStates();
+      })
+    );
     this.addRibbonIcon("git-fork", "Create new mindmap", () =>
       void this.createNewMindmap(null)
     );
@@ -117,7 +141,16 @@ export default class MindsidianNextPlugin extends Plugin {
       if (!leaf.parent || !(v instanceof MarkdownView)) return;
       if (v.file?.path !== file.path) return;
       if (this.fileModes.get(file.path) === "markdown") return;
-      void this.setMindmapView(leaf, file.path, false);
+      // Re-validate against the vault: the file may have been deleted (or
+      // its mindmap marker removed) between the event and this tick —
+      // swapping then would force a dead or ordinary file into the view.
+      const current = this.app.vault.getAbstractFileByPath(file.path);
+      if (!(current instanceof TFile)) return;
+      const fm = this.app.metadataCache.getFileCache(current)?.frontmatter;
+      if (!fm || fm["mindmap-plugin"] == null) return;
+      this.setMindmapView(leaf, file.path, false).catch((error) =>
+        console.error("Mindsidian Next: view swap failed", error)
+      );
     }, 0);
   }
 

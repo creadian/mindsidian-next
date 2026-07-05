@@ -33,6 +33,19 @@ import { WikilinkModal } from "../ui/wikilinkModal";
 
 export const MINDMAP_VIEW_TYPE = "mindsidian-next";
 
+/** First line where two serializations differ — shown in the self-check
+ *  Notice so a refused save names the offending node instead of failing
+ *  anonymously (a non-technical user cannot debug a bare refusal). */
+function firstDiffLine(a: string, b: string | null): string {
+  if (b === null) return "(file did not reparse)";
+  const al = a.split("\n");
+  const bl = b.split("\n");
+  for (let i = 0; i < Math.max(al.length, bl.length); i++) {
+    if (al[i] !== bl[i]) return (al[i] ?? bl[i] ?? "").slice(0, 60);
+  }
+  return "";
+}
+
 export class MindmapView extends TextFileView {
   private plugin: MindsidianNextPlugin;
   private modelSettings: ModelSettings;
@@ -56,6 +69,13 @@ export class MindmapView extends TextFileView {
   private savePending = false;
   /** Zoom captured by teardown() for onUnloadFile's frontmatter write. */
   private parkedZoom: number | null = null;
+  /** True only after a DELIBERATE zoom (wheel/pinch/command). The plugin's
+   *  own fit/recenter also changes the scale — without this gate, a plain
+   *  open-then-close rewrote mindmap-zoom on large maps (contract E12). */
+  private userZoomed = false;
+  /** Timestamp of our last successful save — a reload arriving within a
+   *  short window of it is likely another pane reacting to that save. */
+  private lastSaveAt = 0;
 
   constructor(leaf: WorkspaceLeaf, plugin: MindsidianNextPlugin) {
     super(leaf);
@@ -129,7 +149,9 @@ export class MindmapView extends TextFileView {
     if (
       !clear &&
       this.controller &&
-      (this.savePending || this.controller.editor.isEditing)
+      (this.savePending ||
+        this.controller.editor.isEditing ||
+        Date.now() - this.lastSaveAt < 3000)
     ) {
       new Notice(
         "Mindsidian Next: this file was changed outside this view — " +
@@ -137,6 +159,9 @@ export class MindmapView extends TextFileView {
       );
     }
     this.savePending = false;
+    // Real external content replaced our last emission — a LATER write of
+    // those old bytes must rebuild, not be mistaken for our own echo.
+    if (data !== this.lastEmittedText) this.lastEmittedText = null;
     this.rebuild(data);
   }
 
@@ -169,11 +194,13 @@ export class MindmapView extends TextFileView {
     if (second !== text) {
       console.error("Mindsidian Next: save self-check failed", { text, second });
       new Notice(
-        "Mindsidian Next: save self-check failed — nothing was changed on disk."
+        "Mindsidian Next: save self-check failed — nothing was changed on disk. " +
+          `Problem near: "${firstDiffLine(text, second)}"`
       );
       return this.data; // last-known-good bytes
     }
     this.lastEmittedText = text;
+    this.lastSaveAt = Date.now();
     this.data = text;
     doc.originalText = text;
     this.savePending = false; // in-memory state is on disk again
@@ -186,12 +213,23 @@ export class MindmapView extends TextFileView {
     this.saveBlocked = false;
     this.lastEmittedText = null;
     this.savePending = false;
+    this.userZoomed = false;
     this.data = "";
   }
 
   /** Capture zoom BEFORE the stack is torn down, write it after the save
    *  flush — and only when it actually changed (contract T22 / E12). */
   async onUnloadFile(file: TFile): Promise<void> {
+    // An inline edit still open when the file is switched away must reach
+    // the model BEFORE the unload flush below reads it — otherwise the
+    // typed text is silently discarded with the editor DOM.
+    if (this.controller?.editor.isEditing) {
+      try {
+        this.controller.commitEdit();
+      } catch (error) {
+        console.error("Mindsidian Next: commit-on-unload failed", error);
+      }
+    }
     // teardown() may already have run (Obsidian's ordering varies) — in
     // that case pendingZoomWrite() sees no viewport and the parked value
     // from teardown carries the zoom across.
@@ -255,6 +293,9 @@ export class MindmapView extends TextFileView {
       },
     });
     this.viewport = new Viewport(this.contentEl, world);
+    this.viewport.onUserZoom = () => {
+      this.userZoomed = true;
+    };
     this.viewport.attach();
 
     this.controller = new MindmapController({
@@ -356,7 +397,8 @@ export class MindmapView extends TextFileView {
       if (second !== text) {
         console.error("Mindsidian Next: self-check failed on tree change", { text, second });
         new Notice(
-          "Mindsidian Next: this change does not serialize cleanly — it stays on screen but will NOT be saved."
+          "Mindsidian Next: this change does not serialize cleanly — it stays on screen but will NOT be saved. " +
+            `Problem near: "${firstDiffLine(text, second)}"`
         );
         return;
       }
@@ -386,6 +428,7 @@ export class MindmapView extends TextFileView {
   /** Push a fresh frozen settings snapshot into the live stack. */
   applySettings(): void {
     this.modelSettings = toModelSettings(this.plugin.settings);
+    this.controller?.updateModelSettings(this.modelSettings);
     this.applyContainerStyle();
     if (this.renderer) {
       this.renderer.applySettings(
@@ -406,12 +449,14 @@ export class MindmapView extends TextFileView {
 
   /** Zoom commands (anchored at the view center). */
   zoomBy(factor: number): void {
+    this.userZoomed = true;
     this.viewport?.zoomAtCenter(factor);
   }
 
   zoomReset(): void {
     const viewport = this.viewport;
     if (!viewport) return;
+    this.userZoomed = true;
     const current = viewport.transform.scale;
     const target = clampScale(this.plugin.settings.defaultZoom / 100);
     if (current > 0) viewport.zoomAtCenter(target / current);
@@ -428,6 +473,10 @@ export class MindmapView extends TextFileView {
     const controller = this.controller;
     const viewport = this.viewport;
     if (!controller || !viewport || this.saveBlocked) return null;
+    // Only a DELIBERATE zoom is persisted. The plugin's own fit/recenter
+    // (large map, off-screen refit) also moves the scale — writing that
+    // dirtied every big file on a plain open-then-close (contract E12).
+    if (!this.userZoomed) return null;
     // A never-edited synthesized file must stay untouched (contract E12/T7).
     if (controller.doc.synthesizedRoot && !controller.hasEdits) return null;
     const current = Math.round(viewport.transform.scale * 100);
