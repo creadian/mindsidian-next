@@ -262,3 +262,56 @@ the pre-fix serializer on every real-world fixture (the three `identical=false` 
 are pre-existing documented normalizations; all idempotent; losscheck: 0 missing
 lines). `main.js`/`manifest.json`/`styles.css` re-copied to
 `Claude_testing/.obsidian/plugins/mindsidian-next/`.
+
+---
+
+## 2026-07-05 — Triple-audit fix round (Claude workflow ×45 agents + 3 Codex audits + live testing in Claude_testing)
+
+Audit layers: 7 Opus finders with 2-vote adversarial verification (15 confirmed),
+3 independent Codex (gpt-5.5) audits (parser/serializer, lifecycle, free hunt),
+and a live failure-mode battery driven through the Obsidian CLI in the test
+vault (12 scenarios, byte-diffed). Live testing CONFIRMED by reproduction:
+EC10a (leading "- " text blocks all saves for the session), EC12 (task
+checkboxes silently destroyed at heading depth), cut-on-failed-clipboard
+deleting nodes, multi-select move scramble (A D B E C), and the no-edit zoom
+rewrite on large maps. Live testing REFUTED: the theorized clear()-before-flush
+file truncation (edit + instant file switch keeps both files intact).
+
+Fixed (each with regression tests in tests/audit-fixes.test.ts; 123/123 pass):
+
+- **EC10a** — commitEdit + clipboard paste normalize text via
+  `normalizeBulletText()` (mirrors the parser's E7 chain collapse); the
+  self-check Notice now names the first differing line as backstop.
+- **EC12** — `needsBulletForm()` treats `task !== "none"` as a demotion
+  trigger: the sibling group serializes as bullets, checkbox survives
+  byte-exact. settingsTab documents it; controller gets
+  `updateModelSettings()` so the cycleTask guard follows live headLevel.
+- **Cut** — deletes only after `navigator.clipboard.writeText` verifiably
+  succeeded; otherwise a Notice and the nodes stay.
+- **Escape-delete** — empty-node auto-removal now applies only to nodes the
+  user JUST created (addChild/addSiblingBelow); pre-existing empty nodes
+  are file content and stay.
+- **Group move** — `planGroupMove()` simulates moveNode() semantics step by
+  step; multi-select reorders land in the dragged order, undo exact.
+- **Format toggles** — bold/italic/strike/highlight refuse multi-span text
+  (two `**` spans / two `<mark>` spans) instead of emitting mangled markup.
+- **Zoom churn (E12)** — `mindmap-zoom` written on close only after a
+  deliberate wheel/pinch/command zoom (`Viewport.onUserZoom`); the
+  auto-refit no longer dirties large maps on open-then-close.
+- **Lifecycle** — in-flight inline edit commits before the unload flush
+  (same-leaf file switch kept discarding it); `lastEmittedText` cleared on
+  external rebuild (A→B→A stale echo); own-save reloads within 3s in a
+  second pane now warn; deferred view swap re-validates existence +
+  frontmatter and catches failures; foldStates re-keyed on rename, pruned
+  on delete; hover-link source registered.
+- **Settings hygiene** — every numeric clamps on load (corrupt data.json);
+  number fields ignore empty/invalid mid-typing input (zero-trap).
+- **Fold ≠ edit** — outside markdown persistence, fold commands no longer
+  set hasEdits, so a fold toggle cannot expose a legacy file to forced-save
+  normalization.
+
+Known limitations kept (documented, not fixed): two-writers-on-one-file
+last-writer-wins (Notice fires), EC10b 8-4-4-shaped text suffix, popout
+flush gap (EC3), numbered-list marker roundtrip, mobile F1/F2/F3 (need
+device testing). v1 + v2 must not be enabled together on the same vault —
+both auto-claim `mindmap-plugin: basic` files.
