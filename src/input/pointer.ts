@@ -41,6 +41,8 @@ interface Press {
   longPressTimer: number;
   marqueeTimer: number;
   panning: boolean;
+  /** Recent move positions (~last 120ms) for release-velocity (glide). */
+  samples: Array<{ x: number; y: number; t: number }>;
 }
 
 interface DragState {
@@ -126,6 +128,8 @@ export class PointerController {
   // ------------------------------------------------------------ down
 
   private handleDown(e: PointerEvent): void {
+    // Any new press stops a momentum glide (finger catches the map).
+    this.c.viewport.stopGlide();
     if (e.pointerType === "mouse" && e.button !== 0) return;
     if (e.pointerType === "touch") {
       this.touchCount++;
@@ -191,6 +195,7 @@ export class PointerController {
       longPressTimer: 0,
       marqueeTimer: 0,
       panning: false,
+      samples: [{ x: e.clientX, y: e.clientY, t: performance.now() }],
     };
     this.press = press;
 
@@ -267,7 +272,14 @@ export class PointerController {
       this.updateMarquee(e);
       return;
     }
-    if (press.panning) this.c.viewport.panBy(dx, dy);
+    if (press.panning) {
+      this.c.viewport.panBy(dx, dy);
+      const now = performance.now();
+      press.samples.push({ x: e.clientX, y: e.clientY, t: now });
+      while (press.samples.length > 1 && now - press.samples[0].t > 120) {
+        press.samples.shift();
+      }
+    }
   }
 
   // ------------------------------------------------------------ up
@@ -290,7 +302,10 @@ export class PointerController {
       this.endMarquee();
       return;
     }
-    if (press.moved) return; // pan finished — not a tap
+    if (press.moved) {
+      this.maybeStartGlide(press); // touch pan release → momentum glide
+      return; // not a tap
+    }
 
     // ---- It was a tap / click ----
     if (press.anchorHref) {
@@ -312,6 +327,30 @@ export class PointerController {
       return;
     }
     this.c.select(press.nodeId);
+  }
+
+  /** Start a momentum glide from the release velocity of a touch pan.
+   *  Velocity comes from the last ~120ms of movement; a finger that
+   *  stopped before lifting produces no fresh samples → no glide. */
+  private maybeStartGlide(press: Press): void {
+    if (!press.panning || press.pointerType !== "touch") return;
+    const now = performance.now();
+    const recent = press.samples.filter((s) => now - s.t <= 120);
+    if (recent.length < 2) return;
+    const first = recent[0];
+    const last = recent[recent.length - 1];
+    const dt = last.t - first.t;
+    if (dt < 10) return;
+    let vx = (last.x - first.x) / dt;
+    let vy = (last.y - first.y) / dt;
+    const speed = Math.hypot(vx, vy);
+    if (speed < 0.15) return; // slow release — stop dead, no glide
+    const MAX_SPEED = 5; // px per ms — tame extreme flicks
+    if (speed > MAX_SPEED) {
+      vx *= MAX_SPEED / speed;
+      vy *= MAX_SPEED / speed;
+    }
+    this.c.viewport.startInertia(vx, vy);
   }
 
   // ------------------------------------------------------------ tap memory

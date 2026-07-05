@@ -164,6 +164,40 @@ export class Viewport {
     else this.setTransform(target.x, target.y, target.scale);
   }
 
+  /** Public stop for the glide/animation — any new gesture interrupts. */
+  stopGlide(): void {
+    this.cancelAnimation();
+  }
+
+  /** Glide after a released touch pan (iOS-style momentum): velocity
+   *  decays exponentially, so a faster flick travels further and takes
+   *  longer to stop. Cancelled by any new gesture or animation. */
+  startInertia(vx: number, vy: number): void {
+    this.cancelAnimation();
+    const TAU = 325; // ms decay constant
+    const MIN_SPEED = 0.02; // px per ms — below this the glide ends
+    let last = performance.now();
+    const step = (now: number): void => {
+      const dt = Math.max(0, now - last);
+      last = now;
+      const decay = Math.exp(-dt / TAU);
+      // Analytic integral of the decaying velocity over this frame.
+      this.setTransform(
+        this.t.x + vx * TAU * (1 - decay),
+        this.t.y + vy * TAU * (1 - decay),
+        this.t.scale
+      );
+      vx *= decay;
+      vy *= decay;
+      if (Math.hypot(vx, vy) > MIN_SPEED) {
+        this.animationFrame = requestAnimationFrame(step);
+      } else {
+        this.animationFrame = 0;
+      }
+    };
+    this.animationFrame = requestAnimationFrame(step);
+  }
+
   /** Smoothly animate to a target transform (~200ms ease-out). */
   animateTo(target: ViewTransform, durationMs = 200): void {
     this.cancelAnimation();
