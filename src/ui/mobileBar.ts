@@ -55,52 +55,76 @@ export class MobileActionBar {
     }
 
     controller.containerEl.appendChild(this.el);
-    controller.onSelectionChanged(() => this.updateButtons());
+    controller.onSelectionChanged(() => {
+      this.disarmDelete();
+      this.updateButtons();
+    });
     this.updateButtons();
 
     const vv = doc.defaultView?.visualViewport;
     vv?.addEventListener("resize", this.viewportHandler);
     vv?.addEventListener("scroll", this.viewportHandler);
+    // Keyboard tracking: iOS RESIZES the whole webview when the keyboard
+    // opens, so the visualViewport "covered" math reads 0 there — the
+    // container's bottom already IS the keyboard's top. Track typing
+    // directly instead: while a contenteditable has focus, the bar drops
+    // to a slim 8px gap (the configured offset exists only to clear
+    // Obsidian's navbar, which iOS hides while typing).
+    controller.containerEl.addEventListener("focusin", this.focusHandler);
+    controller.containerEl.addEventListener("focusout", this.focusHandler);
     this.updatePosition();
   }
+
+  private focusHandler = (): void => {
+    const win = this.el.ownerDocument.defaultView;
+    // Defer: on focusout the next activeElement lands a tick later (the
+    // editor also re-grabs focus asynchronously against Obsidian's blur).
+    win?.setTimeout(() => {
+      const active = this.el.ownerDocument.activeElement as HTMLElement | null;
+      this.el.classList.toggle("mn-kb-up", active?.isContentEditable === true);
+      this.updatePosition();
+    }, 120);
+  };
 
   destroy(): void {
     const vv = this.el.ownerDocument.defaultView?.visualViewport;
     vv?.removeEventListener("resize", this.viewportHandler);
     vv?.removeEventListener("scroll", this.viewportHandler);
+    this.c.containerEl.removeEventListener("focusin", this.focusHandler);
+    this.c.containerEl.removeEventListener("focusout", this.focusHandler);
     this.el.remove();
   }
 
-  /** Armed state of the delete button (tap-again-to-confirm, branches). */
+  /** Armed state of the delete button (tap-again-to-confirm). */
   private deleteArmedUntil = 0;
 
-  /** Deleting a BRANCH (anything with children) needs a second tap within
-   *  2.5s — one fat-finger on the bar used to wipe a whole subtree.
-   *  Leaves still delete immediately (undo covers those). */
+  private disarmDelete(): void {
+    this.deleteArmedUntil = 0;
+    const btn = this.buttons.find((b) => b.spec.label === "Delete")?.el;
+    btn?.classList.remove("mn-confirm");
+    if (btn) btn.textContent = "🗑";
+  }
+
+  /** Every delete needs a second tap within 2.5s — one fat-finger on the
+   *  bar used to wipe content (owner request: leaves included). */
   private deleteWithConfirm(): void {
     const targets = this.c.selectedTopNodes();
     if (targets.length === 0) return;
-    const hasBranch = targets.some((n) => n.children.length > 0);
-    const btn = this.buttons.find((b) => b.spec.label === "Delete")?.el;
-    const disarm = (): void => {
-      this.deleteArmedUntil = 0;
-      btn?.classList.remove("mn-confirm");
-      if (btn) btn.textContent = "🗑";
-    };
-    if (!hasBranch || Date.now() < this.deleteArmedUntil) {
-      disarm();
+    if (Date.now() < this.deleteArmedUntil) {
+      this.disarmDelete();
       this.c.deleteSelection();
       return;
     }
     this.deleteArmedUntil = Date.now() + 2500;
+    const btn = this.buttons.find((b) => b.spec.label === "Delete")?.el;
     if (btn) {
       btn.classList.add("mn-confirm");
       btn.textContent = "❗";
       this.el.ownerDocument.defaultView?.setTimeout(() => {
-        if (Date.now() >= this.deleteArmedUntil) disarm();
+        if (Date.now() >= this.deleteArmedUntil) this.disarmDelete();
       }, 2600);
     }
-    this.c.notify("Deleting a whole branch — tap again to confirm.");
+    this.c.notify("Tap 🗑 again to delete.");
   }
 
   /** Hide root-only-unsafe buttons when the root is the selection. */

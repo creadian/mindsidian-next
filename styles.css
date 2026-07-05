@@ -469,7 +469,14 @@
   transform-origin: bottom center;
 }
 
-/* Delete button armed state (tap-again-to-confirm for branches). */
+/* While typing (contenteditable focused) the bar hugs the keyboard: on
+   iOS the webview shrinks to the keyboard top, and Obsidian's navbar is
+   hidden, so the configured bottom offset must not apply. */
+.mn-mobile-bar.mn-kb-up {
+  bottom: 8px;
+}
+
+/* Delete button armed state (tap-again-to-confirm). */
 .mn-mobile-btn.mn-confirm {
   background: var(--background-modifier-error, #e93147);
   color: #fff;
