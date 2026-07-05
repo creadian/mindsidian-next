@@ -355,3 +355,19 @@ verification by Christian still owed):
 sidebar · pan from left screen edge · pan down no pull-down · tap
 selects · double-tap edits + keyboard · long-press drag ghost · pinch
 zoom · bar buttons · fold dot + checkbox taps · desktop unchanged.
+
+---
+
+## 2026-07-05 — Feedback round 2 (alpha.5)
+
+Christian's on-device verdicts on alpha.4: zoom fixed · swipe shield works
+(no sidebars) · drop arrows track perfectly · reveal-on-add works. New:
+- Arrow-key selection now reveals itself before leaving the view
+  (margin pan; on-screen navigation still never pans).
+- Mobile bar: keyboard-adjacent when typing (8px gap; the bottom offset
+  only applies while Obsidian's navbar is visible); branch deletes need
+  a second tap (armed red ❗, 2.5s); palette swatches colored inline
+  (Obsidian mobile button CSS outranked the class rule).
+- New "Node style" setting: classic underline vs boxed (1px light boxes).
+Default bar offset stays 24 — Christian runs 60; revisit the default if
+his value proves universal.
