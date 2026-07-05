@@ -170,6 +170,23 @@ export class MindsidianSettingTab extends PluginSettingTab {
             await this.plugin.saveSettingsAndApply();
           })
       );
+
+    new Setting(containerEl)
+      .setName("Action bar bottom offset")
+      .setDesc(
+        "Distance of the action bar from the bottom edge (px), on top of the " +
+          "device safe area. Raise it if it sits under Obsidian's own bar."
+      )
+      .addSlider((slider) =>
+        slider
+          .setLimits(0, 120, 4)
+          .setValue(s.mobileBarBottomOffset)
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            s.mobileBarBottomOffset = value;
+            await this.plugin.saveSettingsAndApply();
+          })
+      );
   }
 
   /** Small helper: a numeric text field with a minimum bound. Empty or

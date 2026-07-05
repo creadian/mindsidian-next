@@ -445,6 +445,10 @@ export class MindmapView extends TextFileView {
       "--mn-bar-scale",
       String(this.plugin.settings.mobileBarScale)
     );
+    this.contentEl.style.setProperty(
+      "--mn-bar-bottom",
+      `${this.plugin.settings.mobileBarBottomOffset}px`
+    );
   }
 
   /** Zoom commands (anchored at the view center). */

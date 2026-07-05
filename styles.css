@@ -421,7 +421,7 @@
 .mn-mobile-bar {
   position: absolute;
   left: 50%;
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(var(--mn-bar-bottom, 24px) + env(safe-area-inset-bottom, 0px));
   translate: -50% 0;
   display: flex;
   gap: 4px;
@@ -454,7 +454,9 @@
 
 /* Mobile action bar size setting (--mn-bar-scale set by the view). */
 .mn-mobile-bar {
-  transform: scale(var(--mn-bar-scale, 1));
+  /* Keyboard lift (JS-set --mn-bar-lift) and user scale compose in ONE
+     rule — a bare style.transform write from JS clobbered the scale. */
+  transform: translateY(var(--mn-bar-lift, 0px)) scale(var(--mn-bar-scale, 1));
   transform-origin: bottom center;
 }
 

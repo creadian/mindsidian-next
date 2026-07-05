@@ -34,6 +34,9 @@ export interface MindsidianNextSettings {
   focusOnMove: boolean;
   /** Mobile action bar scale factor (1 = default size). */
   mobileBarScale: number;
+  /** Action bar distance from the bottom edge (px), on top of the device
+   *  safe area. Default clears Obsidian's own mobile navbar. */
+  mobileBarBottomOffset: number;
   /** Canvas background CSS color; "" = follow the Obsidian theme. */
   canvasBackground: string;
   /** plugin-data fold persistence: file path → collapsed node text-paths. */
@@ -55,6 +58,7 @@ export const DEFAULT_SETTINGS: MindsidianNextSettings = {
   depthScaledFont: false,
   focusOnMove: false,
   mobileBarScale: 1,
+  mobileBarBottomOffset: 24,
   canvasBackground: "",
   foldStates: {},
 };
@@ -79,6 +83,9 @@ export function mergeSettings(loaded: unknown): MindsidianNextSettings {
   merged.subtreeGap = clampNum(merged.subtreeGap, 0, 200, DEFAULT_SETTINGS.subtreeGap);
   merged.mobileBarScale = clampNum(
     merged.mobileBarScale, 0.5, 3, DEFAULT_SETTINGS.mobileBarScale
+  );
+  merged.mobileBarBottomOffset = clampNum(
+    merged.mobileBarBottomOffset, 0, 120, DEFAULT_SETTINGS.mobileBarBottomOffset
   );
   if (!Array.isArray(merged.branchColors) || merged.branchColors.length === 0) {
     merged.branchColors = [...DEFAULT_SETTINGS.branchColors];

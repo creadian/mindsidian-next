@@ -88,6 +88,8 @@ export class MobileActionBar {
     // How much of the layout viewport the keyboard (or browser chrome)
     // covers at the bottom right now.
     const covered = win.innerHeight - vv.height - vv.offsetTop;
-    this.el.style.transform = `translateY(${-Math.max(0, covered)}px)`;
+    // Compose via CSS var — writing style.transform here clobbered the
+    // scale(var(--mn-bar-scale)) rule, so the size setting never worked.
+    this.el.style.setProperty("--mn-bar-lift", `${-Math.max(0, covered)}px`);
   }
 }
