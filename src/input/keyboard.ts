@@ -97,16 +97,19 @@ export class KeyboardController {
     // ---- Zoom commands (this view only — the listener is container-scoped) ----
     if (mod && !e.shiftKey && (e.key === "=" || e.key === "+")) {
       e.preventDefault();
+      c.viewport.onUserZoom?.(); // deliberate zoom — persists on close
       c.viewport.zoomAtCenter(1.1);
       return;
     }
     if (mod && !e.shiftKey && e.key === "-") {
       e.preventDefault();
+      c.viewport.onUserZoom?.();
       c.viewport.zoomAtCenter(1 / 1.1);
       return;
     }
     if (mod && e.key === "0") {
       e.preventDefault();
+      c.viewport.onUserZoom?.();
       c.viewport.zoomAtCenter(1 / c.viewport.transform.scale);
       return;
     }

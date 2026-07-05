@@ -61,6 +61,13 @@ test("normalizeBulletText: design cases", () => {
   assert.equal(normalizeBulletText("[ ] task-like"), "[ ] task-like");
 });
 
+test("normalizeBulletText: multi-line normalizes per line, fences untouched", () => {
+  assert.equal(normalizeBulletText("a\n- b"), "a\nb");
+  assert.equal(normalizeBulletText("- x\nplain"), "x\nplain");
+  const fence = "```js\nif (x) {\n  y()\n}\n```";
+  assert.equal(normalizeBulletText(fence), fence);
+});
+
 const CORPUS = [
   "- bar",
   "- - deep chain",
@@ -77,6 +84,12 @@ const CORPUS = [
   "--- rule text",
   "ends with dash -",
   "",
+  // multi-line (clipboard-paste path) — Codex fix-review finding: the
+  // E9 split emits one bullet per line, so EVERY line must normalize.
+  "a\n- b",
+  "- x\n- - y\nplain",
+  "first\n\nlast",
+  "```js\nif (x) {\n  y()\n}\n```",
 ];
 
 test("normalizeBulletText: idempotent over the corpus", () => {

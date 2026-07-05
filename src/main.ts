@@ -55,18 +55,34 @@ export default class MindsidianNextPlugin extends Plugin {
     // file created at the same path.
     this.registerEvent(
       this.app.vault.on("rename", (file, oldPath) => {
-        const paths = this.settings.foldStates[oldPath];
-        if (!paths) return;
-        delete this.settings.foldStates[oldPath];
-        this.settings.foldStates[file.path] = paths;
-        this.saveFoldStates();
+        // The event may be for a FOLDER — re-key every descendant too.
+        const prefix = oldPath + "/";
+        let changed = false;
+        for (const key of Object.keys(this.settings.foldStates)) {
+          const newKey =
+            key === oldPath
+              ? file.path
+              : key.startsWith(prefix)
+                ? file.path + "/" + key.slice(prefix.length)
+                : null;
+          if (newKey === null) continue;
+          this.settings.foldStates[newKey] = this.settings.foldStates[key];
+          delete this.settings.foldStates[key];
+          changed = true;
+        }
+        if (changed) this.saveFoldStates();
       })
     );
     this.registerEvent(
       this.app.vault.on("delete", (file) => {
-        if (!this.settings.foldStates[file.path]) return;
-        delete this.settings.foldStates[file.path];
-        this.saveFoldStates();
+        const prefix = file.path + "/";
+        let changed = false;
+        for (const key of Object.keys(this.settings.foldStates)) {
+          if (key !== file.path && !key.startsWith(prefix)) continue;
+          delete this.settings.foldStates[key];
+          changed = true;
+        }
+        if (changed) this.saveFoldStates();
       })
     );
     this.addRibbonIcon("git-fork", "Create new mindmap", () =>

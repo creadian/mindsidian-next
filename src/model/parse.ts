@@ -160,9 +160,25 @@ function lex(body: string): Token[] {
  * as "- - text", which the E7 chain collapse then rewrites — the save
  * self-check fails forever and every subsequent edit is silently refused.
  * Mirrors the bullet-line rules above verbatim: same regexes, same order.
+ *
+ * Multi-line text (only reachable via clipboard paste) is serialized one
+ * bullet PER trimmed line (E9), so each line normalizes independently —
+ * except a pure code fence, whose lines are emitted byte-exact and must
+ * stay untouched. (Pure fence = first line opens with ``` and no interior
+ * line starts with ``` — keep in sync with isPureFence in serialize.ts.)
  */
 export function normalizeBulletText(text: string): string {
-  let t = `- ${text}`;
+  if (!text.includes("\n")) return normalizeBulletLine(text);
+  const lines = text.split("\n");
+  const pureFence =
+    lines[0].trim().startsWith("```") &&
+    lines.slice(1, -1).every((l) => !l.trim().startsWith("```"));
+  if (pureFence) return text;
+  return lines.map((l) => normalizeBulletLine(l.trim())).join("\n");
+}
+
+function normalizeBulletLine(line: string): string {
+  let t = `- ${line}`;
   while (/^- - /.test(t)) t = t.replace(/^- /, "");
   return t === "-" ? "" : t.replace(/^(?:[-*+]|\d+\.)\s+/, "");
 }
