@@ -10,6 +10,7 @@
 import type { MindNode } from "../model/types";
 import { walk } from "../model/tree";
 import type { MindmapController } from "../view/controller";
+import { findDropTarget, type CandidateRect, type DropKind } from "./dropTarget";
 
 const LONG_PRESS_MS = 500;
 const MARQUEE_HOLD_MS = 1000;
@@ -19,11 +20,13 @@ const DRAG_SLOP_MOUSE = 4;
 const DRAG_SLOP_TOUCH = 8;
 const EDGE_PAN_MARGIN = 48;
 const EDGE_PAN_SPEED = 12; // px per frame at the very edge
+// Drop-target search tolerance in SCREEN px (converted to world at use).
+// v1's values: fingers need a far bigger reach than a mouse cursor.
+const DROP_TOLERANCE_TOUCH = 60;
+const DROP_TOLERANCE_MOUSE = 24;
 // Ghost visual offset so the finger doesn't cover what it drags (v1 values).
 const TOUCH_GHOST_DX = -55;
 const TOUCH_GHOST_DY = -15;
-
-type DropKind = "child" | "before" | "after";
 
 interface Press {
   pointerId: number;
@@ -72,6 +75,7 @@ export class PointerController {
   private onPointerMove = (e: PointerEvent): void => this.handleMove(e);
   private onPointerUp = (e: PointerEvent): void => this.handleUp(e);
   private onPointerCancel = (): void => this.cancelAll();
+
 
   constructor(controller: MindmapController, worldEl: HTMLElement) {
     this.c = controller;
@@ -370,38 +374,61 @@ export class PointerController {
     drag.ghostEl.style.transform = `translate(${x}px, ${y}px)`;
   }
 
-  /** Find the drop candidate under the (offset) pointer and show it.
+  /** Find the drop candidate near the (offset) pointer and show it.
+   *  Layout-based nearest-rect search (F2) — no elementFromPoint, so no
+   *  pixel-exact hits needed and the indicator tracks continuously.
    *  The shown target is sticky: leaving it for empty space keeps it, so
    *  the commit always matches what the user last saw (v1's contract). */
   private hitTest(clientX: number, clientY: number): void {
     const drag = this.drag;
     if (!drag) return;
-    const doc = this.containerEl.ownerDocument;
-    const el = doc.elementFromPoint(clientX + drag.hitDx, clientY + drag.hitDy);
-    const nodeEl = el?.closest?.(".mn-node") as HTMLElement | null;
-    if (!nodeEl || !this.containerEl.contains(nodeEl)) return;
-    const id = nodeEl.dataset.mnId;
-    if (!id || drag.excluded.has(id)) return;
-    const target = this.c.node(id);
-    if (!target) return;
-
-    // Drop kind from the vertical position inside the target's box.
-    const rect = nodeEl.getBoundingClientRect();
-    const ratio = rect.height > 0 ? (clientY + drag.hitDy - rect.top) / rect.height : 0.5;
-    let kind: DropKind = ratio < 0.25 ? "before" : ratio > 0.75 ? "after" : "child";
-    if (!target.parent) kind = "child"; // the root has no siblings
-
-    if (
-      drag.lastShown?.targetId === id &&
-      drag.lastShown.kind === kind
-    ) {
+    const world = this.c.viewport.screenToWorld(
+      clientX + drag.hitDx,
+      clientY + drag.hitDy
+    );
+    const tolerancePx =
+      this.press?.pointerType === "mouse" ? DROP_TOLERANCE_MOUSE : DROP_TOLERANCE_TOUCH;
+    const scale = this.c.viewport.transform.scale;
+    const hit = findDropTarget(
+      world.x,
+      world.y,
+      this.dropCandidates(drag.excluded),
+      tolerancePx / (scale > 0 ? scale : 1)
+    );
+    if (!hit) return; // nothing near — previous target stays sticky
+    if (drag.lastShown?.targetId === hit.id && drag.lastShown.kind === hit.kind) {
       return; // unchanged
     }
+    const nodeEl = this.c.renderer.getElement(hit.id);
+    if (!nodeEl) return;
     drag.lastTargetEl?.classList.remove("is-drop-target");
     nodeEl.classList.add("is-drop-target");
     drag.lastTargetEl = nodeEl;
-    drag.lastShown = { targetId: id, kind };
-    this.positionArrow(nodeEl, kind);
+    drag.lastShown = { targetId: hit.id, kind: hit.kind };
+    this.positionArrow(nodeEl, hit.kind);
+  }
+
+  /** Visible node rects (world coords) minus the dragged subtree. */
+  private dropCandidates(excluded: Set<string>): CandidateRect[] {
+    const layout = this.c.renderer.getLayout();
+    if (!layout) return [];
+    const out: CandidateRect[] = [];
+    for (const [id, pos] of layout.positions) {
+      if (excluded.has(id)) continue;
+      const node = this.c.node(id);
+      if (!node) continue;
+      const size = this.c.renderer.getSize(id);
+      out.push({
+        id,
+        x: pos.x,
+        y: pos.y,
+        w: size?.w ?? 0,
+        h: size?.h ?? 0,
+        side: pos.side,
+        isRoot: !node.parent,
+      });
+    }
+    return out;
   }
 
   /** Place the drop-kind arrow indicator next to the shown target. */
