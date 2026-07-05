@@ -220,6 +220,37 @@ export class MindmapController {
     this.selection.select(id);
     this.applySelectionClasses();
     this.editor.begin(node, nodeEl, contentEl, options);
+    // A child/sibling born beyond the window edge appeared clipped AT the
+    // edge (nothing panned — focus uses preventScroll). Reveal it with a
+    // margin once this frame's layout has settled.
+    requestAnimationFrame(() => {
+      if (this.editor.editingId === id) this.revealNode(id);
+    });
+  }
+
+  /** Pan (animated) the minimal amount that puts the node fully inside
+   *  the view with a comfortable margin. No-op when already inside. */
+  revealNode(id: string, margin = 64): void {
+    const pos = this.renderer.getLayout()?.positions.get(id);
+    if (!pos) return;
+    const size = this.renderer.getSize(id);
+    const { x: tx, y: ty, scale } = this.viewport.transform;
+    const rect = this.containerEl.getBoundingClientRect();
+    const w = (size?.w ?? 0) * scale;
+    const h = (size?.h ?? 0) * scale;
+    const left = tx + pos.x * scale; // container-relative screen coords
+    const top = ty + pos.y * scale;
+    // Shrink the margin for nodes too big to fit with it (never overshoot).
+    const mx = Math.min(margin, Math.max(0, (rect.width - w) / 2));
+    const my = Math.min(margin, Math.max(0, (rect.height - h) / 2));
+    let dx = 0;
+    let dy = 0;
+    if (left < mx) dx = mx - left;
+    else if (left + w > rect.width - mx) dx = rect.width - mx - (left + w);
+    if (top < my) dy = my - top;
+    else if (top + h > rect.height - my) dy = rect.height - my - (top + h);
+    if (dx === 0 && dy === 0) return;
+    this.viewport.animateTo({ x: tx + dx, y: ty + dy, scale }, 160);
   }
 
   /** Commit the in-flight edit (if any) as one history step. */

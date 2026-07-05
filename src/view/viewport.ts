@@ -204,7 +204,10 @@ export class Viewport {
     this.cancelAnimation();
     if (e.ctrlKey || e.metaKey) {
       // Trackpad pinch / Ctrl+wheel → zoom anchored at the cursor.
-      const factor = Math.exp(-e.deltaY * 0.01);
+      // Rate 0.004 ≈ v1's feel (~1.2x per normal pinch flick). The old
+      // 0.01 zoomed ~2.5x faster; each anchored step flings the content
+      // mass sideways so hard it reads as "the whole map shifts".
+      const factor = Math.exp(-e.deltaY * 0.004);
       this.onUserZoom?.();
       this.zoomAtClientPoint(e.clientX, e.clientY, factor);
     } else {
