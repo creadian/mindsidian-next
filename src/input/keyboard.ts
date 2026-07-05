@@ -190,8 +190,13 @@ export class KeyboardController {
       const layout = c.renderer.getLayout();
       if (!layout) return;
       const next = navigate(current, ARROWS[e.key], layout);
-      if (next) c.select(next.id);
-      else if (!c.selection.primary) c.select(current.id);
+      if (next) {
+        c.select(next.id);
+        // Pan only when the selection would leave the view (the margin
+        // pan is a no-op for on-screen nodes) — the highlight must never
+        // walk off-screen, but on-screen navigation still never pans.
+        c.revealNode(next.id);
+      } else if (!c.selection.primary) c.select(current.id);
       return;
     }
 
