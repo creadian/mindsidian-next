@@ -9,11 +9,7 @@
 import type { MindDocument, MindNode, ParseResult, TaskState } from "./types";
 import { createNode } from "./tree";
 import { splitRegions } from "./region";
-
-// A trailing fold marker: " ^xxxxxxxx-xxxx-xxxx", strict lowercase hex
-// (contract B1). Looser ids like "^my-anchor" are real Obsidian block
-// refs and must stay in the text (contract B2 / E8).
-const TRAILING_FOLD_ID = / \^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4})$/;
+import { TRAILING_FOLD_ID, fenceOpen, fenceCloses, isPureFence } from "./fence";
 
 // Leading task checkbox on a bullet: "[ ] " / "[x] " / "[X] ".
 const TASK_PREFIX = /^\[([ xX])\]\s+/;
@@ -98,12 +94,15 @@ function lex(body: string): Token[] {
     const trimmed = line.trim();
 
     // Code fences: capture the whole block byte-exact (E10 — no trims).
-    if (trimmed.startsWith("```")) {
+    // Opener/closer rules live in fence.ts (CommonMark subset: ~~~ too,
+    // closers must match the opener's character and length or more).
+    const fence = fenceOpen(line);
+    if (fence) {
       const fenceLines: string[] = [line];
       let j = i + 1;
       for (; j < lines.length; j++) {
         fenceLines.push(lines[j]);
-        if (lines[j].trim().startsWith("```")) break; // closing fence
+        if (fenceCloses(lines[j], fence)) break; // closing fence
       }
       const ownIndent = (line.match(/^(\s*)/) as RegExpMatchArray)[1];
       // Canonical emitter shape: an empty bullet directly before the fence
@@ -164,16 +163,13 @@ function lex(body: string): Token[] {
  * Multi-line text (only reachable via clipboard paste) is serialized one
  * bullet PER trimmed line (E9), so each line normalizes independently —
  * except a pure code fence, whose lines are emitted byte-exact and must
- * stay untouched. (Pure fence = first line opens with ``` and no interior
- * line starts with ``` — keep in sync with isPureFence in serialize.ts.)
+ * stay untouched (isPureFence in fence.ts — the same predicate the
+ * serializer uses, so the two can never disagree).
  */
 export function normalizeBulletText(text: string): string {
   if (!text.includes("\n")) return normalizeBulletLine(text);
   const lines = text.split("\n");
-  const pureFence =
-    lines[0].trim().startsWith("```") &&
-    lines.slice(1, -1).every((l) => !l.trim().startsWith("```"));
-  if (pureFence) {
+  if (isPureFence(text)) {
     // Fence lines are emitted byte-exact — EXCEPT that a trailing strict
     // fold-id suffix on the last line is stripped as metadata on reparse,
     // so it cannot survive as text either.

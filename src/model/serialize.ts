@@ -16,18 +16,7 @@
 
 import type { MindDocument, MindNode, ModelSettings } from "./types";
 import { DEFAULT_MODEL_SETTINGS } from "./types";
-
-/** True when `text` is one whole code fence: the first line opens with
- *  ``` and no interior line also starts with ``` (only the final line may
- *  be the closing fence). Anything else is ordinary multi-line text. */
-function isPureFence(text: string): boolean {
-  const lines = text.split("\n");
-  if (!lines[0].trim().startsWith("```")) return false;
-  for (let i = 1; i < lines.length - 1; i++) {
-    if (lines[i].trim().startsWith("```")) return false;
-  }
-  return true;
-}
+import { fenceOpen, fenceCloses, isPureFence } from "./fence";
 
 /** A node with no possible heading line: empty text, a whole code fence,
  *  or a task checkbox (headings cannot carry [ ]/[x] — emitting one as a
@@ -99,13 +88,11 @@ export function serializeBody(
       // deeper, byte-exact, wrapped in blank lines (contract §5 / E10).
       const lines = node.text.split("\n");
       // An unclosed fence is closed here — otherwise it would swallow
-      // every following line on reparse and block all saves.
-      const closed =
-        lines.length > 1 && lines[lines.length - 1].trim().startsWith("```");
-      if (!closed) {
-        const ticks = (lines[0].trim().match(/^`+/) as RegExpMatchArray)[0];
-        lines.push(ticks);
-      }
+      // every following line on reparse and block all saves. The closer
+      // mirrors the opener (character AND length: ~~~ or ````).
+      const open = fenceOpen(lines[0]) as NonNullable<ReturnType<typeof fenceOpen>>;
+      const closed = lines.length > 1 && fenceCloses(lines[lines.length - 1], open);
+      if (!closed) lines.push(open.char.repeat(open.len));
       md += `\n${indent}-\n`;
       lines.forEach((line, i) => {
         md += `${indent}  ${line}${i === lines.length - 1 ? ending : ""}\n`;
