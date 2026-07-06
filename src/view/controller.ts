@@ -610,13 +610,17 @@ export class MindmapController {
 
   /** Palette pick: color = recolor/wrap, null = strip. Multi-select aware. */
   applyHighlightColor(color: string | null): void {
+    // Commit any in-flight edit BEFORE resolving targets: the commit can
+    // remove a just-added empty node (abandoned add), and a command built
+    // against that dead id would throw — in multi-select after earlier
+    // commands already applied, leaving them outside the undo history.
+    if (this.editor.isEditing) this.commitEdit();
     const targets = this.selection.isMulti
       ? this.selection.ids.map((id) => this.ctx.index.get(id)).filter((n): n is MindNode => !!n)
       : this.primaryNode
         ? [this.primaryNode]
         : [];
     if (targets.length === 0) return;
-    if (this.editor.isEditing) this.commitEdit();
     const commands = targets.map(
       (n) =>
         new ChangeTextCommand(
