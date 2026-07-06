@@ -74,6 +74,13 @@ export class NodeEditor {
         // for ownerless blurs; a non-null relatedTarget means the user
         // deliberately focused something else (palette, another pane).
         if (this.active !== edit || e.relatedTarget !== null) return;
+        // Synchronously first: a frame with nothing focused makes iOS
+        // dismiss and re-summon the keyboard (visible blink when adding
+        // a sibling/child from the mobile bar). The rAF pass stays as a
+        // fallback for anything that re-blurs within this tick.
+        if (edit.contentEl.isConnected) {
+          edit.contentEl.focus({ preventScroll: true });
+        }
         requestAnimationFrame(() => {
           if (this.active === edit && edit.contentEl.isConnected) {
             edit.contentEl.focus({ preventScroll: true });
