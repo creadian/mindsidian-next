@@ -20,7 +20,8 @@ export class MobileActionBar {
   private c: MindmapController;
   private el: HTMLElement;
   private buttons: Array<{ el: HTMLElement; spec: BarButton }> = [];
-  private viewportHandler = (): void => this.updatePosition();
+  private viewportHandler = (): void => this.scheduleSettle();
+  private settleTimers: number[] = [];
 
   constructor(controller: MindmapController, palette: HighlightPalette) {
     this.c = controller;
@@ -78,6 +79,14 @@ export class MobileActionBar {
     const vv = doc.defaultView?.visualViewport;
     vv?.addEventListener("resize", this.viewportHandler);
     vv?.addEventListener("scroll", this.viewportHandler);
+    // Rotation: visualViewport alone is not enough — iOS updates window
+    // and visualViewport metrics at DIFFERENT times during an orientation
+    // change, and the last visualViewport event can fire while the numbers
+    // are still mismatched (observed on-device: bar stuck far above the
+    // keyboard after landscape→portrait). The window listeners re-trigger,
+    // and scheduleSettle() re-measures until iOS has settled.
+    doc.defaultView?.addEventListener("resize", this.viewportHandler);
+    doc.defaultView?.addEventListener("orientationchange", this.viewportHandler);
     // Keyboard tracking: iOS RESIZES the whole webview when the keyboard
     // opens, so the visualViewport "covered" math reads 0 there — the
     // container's bottom already IS the keyboard's top. Track typing
@@ -96,14 +105,22 @@ export class MobileActionBar {
     win?.setTimeout(() => {
       const active = this.el.ownerDocument.activeElement as HTMLElement | null;
       this.el.classList.toggle("mn-kb-up", active?.isContentEditable === true);
-      this.updatePosition();
+      // Settle burst, not a single read: the iOS keyboard is still
+      // animating in/out at this point and one early measurement would
+      // freeze the bar at a mid-animation position.
+      this.scheduleSettle();
     }, 120);
   };
 
   destroy(): void {
-    const vv = this.el.ownerDocument.defaultView?.visualViewport;
+    const win = this.el.ownerDocument.defaultView;
+    const vv = win?.visualViewport;
     vv?.removeEventListener("resize", this.viewportHandler);
     vv?.removeEventListener("scroll", this.viewportHandler);
+    win?.removeEventListener("resize", this.viewportHandler);
+    win?.removeEventListener("orientationchange", this.viewportHandler);
+    for (const id of this.settleTimers) win?.clearTimeout(id);
+    this.settleTimers = [];
     this.c.containerEl.removeEventListener("focusin", this.focusHandler);
     this.c.containerEl.removeEventListener("focusout", this.focusHandler);
     this.el.remove();
@@ -150,14 +167,32 @@ export class MobileActionBar {
     }
   }
 
+  /** Recompute now AND over the next second: iOS settles window /
+   *  visualViewport metrics asynchronously after rotations and keyboard
+   *  transitions, and the last event can fire before the final numbers
+   *  are in. A bounded burst (not a poller) rides out the settling. */
+  private scheduleSettle(): void {
+    const win = this.el.ownerDocument.defaultView;
+    if (!win) return;
+    for (const id of this.settleTimers) win.clearTimeout(id);
+    this.updatePosition();
+    this.settleTimers = [150, 400, 900].map((ms) =>
+      win.setTimeout(() => this.updatePosition(), ms)
+    );
+  }
+
   /** Keep the bar above the on-screen keyboard, from visualViewport only. */
   private updatePosition(): void {
     const win = this.el.ownerDocument.defaultView;
     const vv = win?.visualViewport;
     if (!win || !vv) return;
-    // How much of the layout viewport the keyboard (or browser chrome)
-    // covers at the bottom right now.
-    const covered = win.innerHeight - vv.height - vv.offsetTop;
+    // How much of the CONTAINER the keyboard covers right now. Measured
+    // against the container's own rect — NOT window.innerHeight, whose
+    // update timing differs from visualViewport's during rotation, which
+    // left the bar stranded on a stale mismatch (landscape bug 2026-07-06).
+    // getBoundingClientRect and the vv metrics are both read at call time.
+    const containerBottom = this.c.containerEl.getBoundingClientRect().bottom;
+    const covered = containerBottom - (vv.offsetTop + vv.height);
     // Keyboard up: sit DIRECTLY above it (small gap). The configured
     // bottom offset exists to clear Obsidian's navbar — which iOS hides
     // while typing, so stacking offset + keyboard height put the bar
