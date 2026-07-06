@@ -1,6 +1,6 @@
 {
   "name": "mindsidian-next",
-  "version": "2.0.0-alpha.21",
+  "version": "2.0.0-alpha.22",
   "description": "Mindsidian v2 prototype — markdown mind maps for Obsidian, rebuilt with data safety first.",
   "main": "main.js",
   "scripts": {
