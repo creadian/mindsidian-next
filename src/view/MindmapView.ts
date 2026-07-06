@@ -111,8 +111,15 @@ export class MindmapView extends TextFileView {
     return "git-fork";
   }
 
-  canAcceptExtension(extension: string): boolean {
-    return extension === "md";
+  // Must be false: Obsidian's WorkspaceLeaf.openFile keeps the CURRENT view
+  // type whenever the current view canAcceptExtension — accepting "md" made
+  // every wikilink clicked inside a mindmap load the target note INTO this
+  // view (which then wrote mindmap-zoom frontmatter into a plain note on
+  // unload). With false, openFile falls back to the markdown view; real
+  // mindmap files are swapped back by maybeSwapToMindmap via the file-open /
+  // active-leaf-change events in main.ts.
+  canAcceptExtension(): boolean {
+    return false;
   }
 
   onPaneMenu(menu: Menu, source: string): void {
@@ -236,7 +243,11 @@ export class MindmapView extends TextFileView {
     const zoom = this.pendingZoomWrite() ?? this.parkedZoom;
     this.parkedZoom = null;
     await super.onUnloadFile(file); // flushes any pending debounced save
-    if (zoom !== null) {
+    // Safety net: never write zoom into a file that isn't a mindmap — a plain
+    // note that somehow entered this view must not get properties added.
+    const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
+    const isMindmap = fm != null && fm["mindmap-plugin"] != null;
+    if (zoom !== null && isMindmap) {
       try {
         await this.app.fileManager.processFrontMatter(file, (fm) => {
           fm["mindmap-zoom"] = zoom;

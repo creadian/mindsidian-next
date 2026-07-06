@@ -1,7 +1,7 @@
 {
 	"id": "mindsidian-next",
 	"name": "Mindsidian Next (v2 prototype)",
-	"version": "2.0.0-alpha.9",
+	"version": "2.0.0-alpha.10",
 	"minAppVersion": "1.7.2",
 	"description": "Prototype rewrite of the Mindsidian mind-map plugin. Installs side-by-side with the original; data safety first.",
 	"author": "Christian Sextl",
