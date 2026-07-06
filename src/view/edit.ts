@@ -30,6 +30,12 @@ export interface CommitResult {
 export class NodeEditor {
   private active: ActiveEdit | null = null;
 
+  /** Stage D hooks (set by MindmapView): the inline link suggest attaches to
+   *  the editor element when an edit starts. Plain callbacks keep this module
+   *  obsidian-free. */
+  onEditStart: ((contentEl: HTMLElement) => void) | null = null;
+  onEditEnd: (() => void) | null = null;
+
   get isEditing(): boolean {
     return this.active !== null;
   }
@@ -104,6 +110,7 @@ export class NodeEditor {
 
     contentEl.focus({ preventScroll: true });
     placeCaret(contentEl, options?.selectAll === true);
+    this.onEditStart?.(contentEl);
   }
 
   /** Element fully prepared by prepareHandoff — begin() must not touch
@@ -194,6 +201,7 @@ export class NodeEditor {
     edit.nodeEl.classList.remove("is-editing");
     edit.contentEl.blur();
     this.active = null;
+    this.onEditEnd?.();
   }
 }
 
@@ -220,8 +228,9 @@ function placeCaret(contentEl: HTMLElement, selectAll: boolean): void {
   selection.addRange(range);
 }
 
-/** Character offsets of the current selection inside the editor, if any. */
-function selectionOffsets(
+/** Character offsets of the current selection inside the editor, if any.
+ *  Exported for the inline link suggest (view/linksuggest.ts). */
+export function selectionOffsets(
   contentEl: HTMLElement
 ): { start: number; end: number } | null {
   const selection = contentEl.ownerDocument.defaultView?.getSelection();
@@ -239,4 +248,34 @@ function selectionOffsets(
   const start = measure(range.startContainer, range.startOffset);
   const end = measure(range.endContainer, range.endOffset);
   return start <= end ? { start, end } : { start: end, end: start };
+}
+
+/** Put the caret at a character offset inside the editor. Falls back to the
+ *  end when the offset exceeds the text (defensive; offsets come from the
+ *  same textContent the caller just wrote). */
+export function setCaretOffset(contentEl: HTMLElement, offset: number): void {
+  const doc = contentEl.ownerDocument;
+  const selection = doc.defaultView?.getSelection();
+  if (!selection) return;
+  const range = doc.createRange();
+  let remaining = offset;
+  let placed = false;
+  const walker = doc.createTreeWalker(contentEl, NodeFilter.SHOW_TEXT);
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    const len = node.textContent?.length ?? 0;
+    if (remaining <= len) {
+      range.setStart(node, remaining);
+      range.collapse(true);
+      placed = true;
+      break;
+    }
+    remaining -= len;
+  }
+  if (!placed) {
+    range.selectNodeContents(contentEl);
+    range.collapse(false);
+  }
+  selection.removeAllRanges();
+  selection.addRange(range);
 }

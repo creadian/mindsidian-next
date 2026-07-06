@@ -58,6 +58,9 @@ export class KeyboardController {
     // ---- While editing: only the keys that end/steer the edit ----
     if (c.isEditing) {
       if (e.isComposing || c.editor.composing) return; // IME guard
+      // A key already consumed above us (the "[[" link-suggest popover takes
+      // Enter/Escape via Obsidian's keymap scope) must not also end the edit.
+      if (e.defaultPrevented) return;
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         c.commitEdit();

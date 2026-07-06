@@ -29,6 +29,7 @@ import { KeyboardController } from "../input/keyboard";
 import { HighlightPalette } from "../ui/palette";
 import { MobileActionBar } from "../ui/mobileBar";
 import { insertWikilink } from "../ui/wikilink";
+import { NodeLinkSuggest } from "./linksuggest";
 import { WikilinkModal } from "../ui/wikilinkModal";
 
 export const MINDMAP_VIEW_TYPE = "mindsidian-next";
@@ -57,6 +58,9 @@ export class MindmapView extends TextFileView {
   private pointer: PointerController | null = null;
   private keyboard: KeyboardController | null = null;
   private palette: HighlightPalette | null = null;
+  /** Inline "[[" autocomplete, one per (cached) node content element. */
+  private linkSuggests = new WeakMap<HTMLElement, NodeLinkSuggest>();
+  private activeLinkSuggest: NodeLinkSuggest | null = null;
   private mobileBar: MobileActionBar | null = null;
 
   /** True after a failed parse: getViewData must echo the original bytes. */
@@ -323,6 +327,27 @@ export class MindmapView extends TextFileView {
         },
       },
     });
+    // Inline "[[" autocomplete: one suggest per content element (elements are
+    // cached per node in render.ts — reuse instead of stacking listeners).
+    this.controller.editor.onEditStart = (contentEl) => {
+      let suggest = this.linkSuggests.get(contentEl);
+      if (!suggest) {
+        suggest = new NodeLinkSuggest(
+          this.app,
+          contentEl as HTMLDivElement,
+          () => this.file?.path ?? "",
+          () => this.controller?.editor.composing ?? false
+        );
+        this.linkSuggests.set(contentEl, suggest);
+      }
+      this.activeLinkSuggest = suggest;
+    };
+    this.controller.editor.onEditEnd = () => {
+      // Blur already closes the popover; belt-and-braces for edge orderings.
+      this.activeLinkSuggest?.close();
+      this.activeLinkSuggest = null;
+    };
+
     this.pointer = new PointerController(this.controller, world);
     this.pointer.attach();
     this.keyboard = new KeyboardController(
@@ -537,6 +562,13 @@ export class MindmapView extends TextFileView {
    * user gets the existing Notice instead of a silent overwrite.
    */
   private teardown(commitInFlight = true): void {
+    // Close the "[[" popover FIRST, unconditionally: on the no-commit rebuild
+    // path (external file change wins over an open edit) the editor teardown
+    // never runs, contentEl.empty() removes the focused element WITHOUT a
+    // blur event, and an orphaned popover would keep consuming Enter/Escape/
+    // arrows app-wide through its keymap scope.
+    this.activeLinkSuggest?.close();
+    this.activeLinkSuggest = null;
     if (commitInFlight && this.controller?.editor.isEditing) {
       try {
         this.controller.commitEdit();
