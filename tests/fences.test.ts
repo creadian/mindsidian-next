@@ -98,6 +98,24 @@ test("collapsed fence node: fold marker on the closer line still closes", () => 
   assert.deepEqual(flatTexts(reparsed.root), ["Root", "Section", fenceText, "child", "after"]);
 });
 
+test("closer with fold marker AND trailing spaces still closes (Codex re-review)", () => {
+  // TRAILING_FOLD_ID anchors at line end; trailing spaces after the
+  // marker must not leave the fence open and swallow following nodes.
+  const input =
+    "# R\n\n## H\n\n-\n  ```js\n  code\n  ``` ^aaaaaaaa-bbbb-cccc   \n\n- after";
+  const { root } = parseBody(input, "R");
+  const texts = flatTexts(root);
+  assert.ok(texts.includes("after"), "'after' must stay a sibling node");
+  assert.equal(
+    texts.filter((t) => t.includes("after")).length,
+    1,
+    "'after' must not be swallowed into the fence"
+  );
+  const pass1 = serializeBody(root);
+  const pass2 = serializeBody(parseBody(pass1, "R").root);
+  assert.equal(pass2, pass1, "must be idempotent");
+});
+
 test("splitRegions: '# ' inside a ~~~ fence is never the root H1", () => {
   const input = "~~~txt\n# fake\n~~~\n\n# Real Root\n- a\n";
   const { prefix, body } = splitRegions(input);

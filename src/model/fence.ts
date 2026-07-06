@@ -34,7 +34,11 @@ export function fenceOpen(line: string): FenceMarker | null {
  *  marker on the closer line ("``` ^id" — appended by the serializer to a
  *  collapsed fence node's last line) is metadata, not part of the closer. */
 export function fenceCloses(line: string, open: FenceMarker): boolean {
+  // trimEnd BEFORE the fold-id strip: TRAILING_FOLD_ID anchors at the line
+  // end, so trailing spaces after the marker would otherwise defeat it and
+  // leave the fence open (Codex re-review 2026-07-06).
   const m = line
+    .trimEnd()
     .replace(TRAILING_FOLD_ID, "")
     .trim()
     .match(/^(`{3,}|~{3,})$/);
