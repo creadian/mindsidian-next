@@ -67,6 +67,20 @@ export class MindmapController {
    *  Escape on it used to DELETE it from the file). */
   private newlyAddedId: string | null = null;
 
+  /** Where the usable screen ends (keyboard top) — see KeyboardInsets.
+   *  Infinity when absent (desktop). */
+  private visibleBottom: () => number;
+
+  /** All panning is transform-based; a real scroll offset on the
+   *  container is ALWAYS bogus — iOS writes one when it force-scrolls
+   *  the focused editor "into view" (keyboard up), visually tearing the
+   *  map and fighting revealNode's animation (landscape jump bug
+   *  2026-07-06). Reset it the moment it appears. */
+  private scrollReset = (): void => {
+    if (this.containerEl.scrollTop !== 0) this.containerEl.scrollTop = 0;
+    if (this.containerEl.scrollLeft !== 0) this.containerEl.scrollLeft = 0;
+  };
+
   constructor(options: {
     doc: MindDocument;
     renderer: MindmapRenderer;
@@ -74,6 +88,7 @@ export class MindmapController {
     containerEl: HTMLElement;
     modelSettings: ModelSettings;
     callbacks: ControllerCallbacks;
+    visibleBottom?: () => number;
   }) {
     this.doc = options.doc;
     this.ctx = { root: options.doc.root, index: buildIndex(options.doc.root) };
@@ -83,6 +98,8 @@ export class MindmapController {
     this.containerEl = options.containerEl;
     this.modelSettings = options.modelSettings;
     this.callbacks = options.callbacks;
+    this.visibleBottom = options.visibleBottom ?? (() => Number.POSITIVE_INFINITY);
+    this.containerEl.addEventListener("scroll", this.scrollReset, { passive: true });
 
     this.focusAnchor = options.containerEl.ownerDocument.createElement("div");
     this.focusAnchor.className = "mn-focus-anchor";
@@ -91,6 +108,7 @@ export class MindmapController {
   }
 
   destroy(): void {
+    this.containerEl.removeEventListener("scroll", this.scrollReset);
     this.focusAnchor.remove();
     this.selectionListeners = [];
   }
@@ -245,19 +263,27 @@ export class MindmapController {
     const size = this.renderer.getSize(id);
     const { x: tx, y: ty, scale } = this.viewport.transform;
     const rect = this.containerEl.getBoundingClientRect();
+    // The usable height ends at the KEYBOARD, not the container bottom —
+    // in iOS landscape the container extends beneath the keyboard, and a
+    // node "revealed" into that strip makes iOS force-scroll the editor
+    // into view, fighting this pan (landscape jump bug 2026-07-06).
+    const usableH = Math.max(
+      48,
+      Math.min(rect.bottom, this.visibleBottom()) - rect.top
+    );
     const w = (size?.w ?? 0) * scale;
     const h = (size?.h ?? 0) * scale;
     const left = tx + pos.x * scale; // container-relative screen coords
     const top = ty + pos.y * scale;
     // Shrink the margin for nodes too big to fit with it (never overshoot).
     const mx = Math.min(margin, Math.max(0, (rect.width - w) / 2));
-    const my = Math.min(margin, Math.max(0, (rect.height - h) / 2));
+    const my = Math.min(margin, Math.max(0, (usableH - h) / 2));
     let dx = 0;
     let dy = 0;
     if (left < mx) dx = mx - left;
     else if (left + w > rect.width - mx) dx = rect.width - mx - (left + w);
     if (top < my) dy = my - top;
-    else if (top + h > rect.height - my) dy = rect.height - my - (top + h);
+    else if (top + h > usableH - my) dy = usableH - my - (top + h);
     if (dx === 0 && dy === 0) return;
     this.viewport.animateTo({ x: tx + dx, y: ty + dy, scale }, 160);
   }

@@ -27,6 +27,7 @@ import { MindmapController } from "./controller";
 import { PointerController } from "../input/pointer";
 import { KeyboardController } from "../input/keyboard";
 import { ClipboardEventController } from "../input/clipboardEvents";
+import { KeyboardInsets } from "../input/keyboardInsets";
 import { HighlightPalette } from "../ui/palette";
 import { MobileActionBar } from "../ui/mobileBar";
 import { insertWikilink } from "../ui/wikilink";
@@ -59,6 +60,7 @@ export class MindmapView extends TextFileView {
   private pointer: PointerController | null = null;
   private keyboard: KeyboardController | null = null;
   private clipboardEvents: ClipboardEventController | null = null;
+  private keyboardInsets: KeyboardInsets | null = null;
   private palette: HighlightPalette | null = null;
   /** Inline "[[" autocomplete, one per (cached) node content element. */
   private linkSuggests = new WeakMap<HTMLElement, NodeLinkSuggest>();
@@ -353,12 +355,20 @@ export class MindmapView extends TextFileView {
     };
     this.viewport.attach();
 
+    // Keyboard-top tracker: shared truth for the controller's revealNode
+    // and the mobile bar (iOS landscape hides the keyboard from the web
+    // layer — see KeyboardInsets).
+    this.keyboardInsets = new KeyboardInsets(this.contentEl.ownerDocument);
+    this.keyboardInsets.attach();
+    const insets = this.keyboardInsets;
+
     this.controller = new MindmapController({
       doc,
       renderer: this.renderer,
       viewport: this.viewport,
       containerEl: this.contentEl,
       modelSettings: this.modelSettings,
+      visibleBottom: () => insets.visibleBottom(),
       callbacks: {
         onTreeChanged: () => this.onTreeChanged(),
         notify: (message) => new Notice(message),
@@ -405,6 +415,7 @@ export class MindmapView extends TextFileView {
       this.mobileBar = new MobileActionBar(
         this.controller,
         this.palette,
+        insets,
         () => this.plugin.settings.mobileBarDiagnostics
       );
     }
@@ -639,6 +650,7 @@ export class MindmapView extends TextFileView {
     if (zoom !== null) this.parkedZoom = zoom;
     this.mobileBar?.destroy();
     this.palette?.destroy();
+    this.keyboardInsets?.destroy();
     this.clipboardEvents?.destroy();
     this.keyboard?.destroy();
     this.pointer?.destroy();
@@ -647,6 +659,7 @@ export class MindmapView extends TextFileView {
     this.viewport?.destroy();
     this.mobileBar = null;
     this.palette = null;
+    this.keyboardInsets = null;
     this.clipboardEvents = null;
     this.keyboard = null;
     this.pointer = null;

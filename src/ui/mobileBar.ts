@@ -8,6 +8,7 @@
 
 import type { MindmapController } from "../view/controller";
 import type { HighlightPalette } from "./palette";
+import type { KeyboardInsets } from "../input/keyboardInsets";
 
 /** Gap between the keyboard top and the bar (px). */
 const KEYBOARD_GAP = 8;
@@ -31,29 +32,21 @@ export class MobileActionBar {
   /** Current keyboard lift in px (kept as state so the post-layout
    *  verification can adjust it against the bar's MEASURED position). */
   private lift = 0;
-  /** Native keyboard height from Capacitor window events (Obsidian's
-   *  mobile shell). THE decisive signal in landscape, where iOS neither
-   *  resizes the window nor shrinks the visualViewport for the keyboard
-   *  (diagnosed on-device 2026-07-06: vv claimed full height while the
-   *  keyboard covered the bar). 0 = no keyboard / no such events. */
-  private nativeKbHeight = 0;
-  private kbShowHandler = (e: Event): void => {
-    const h = (e as { keyboardHeight?: unknown }).keyboardHeight;
-    this.nativeKbHeight = typeof h === "number" && h > 0 ? h : 0;
-    this.scheduleSettle();
-  };
-  private kbHideHandler = (): void => {
-    this.nativeKbHeight = 0;
-    this.scheduleSettle();
-  };
+  /** Shared keyboard-top tracker (native Capacitor height + Obsidian
+   *  toolbar + visualViewport) — owned by the view, also used by the
+   *  controller's revealNode. */
+  private insets: KeyboardInsets;
   private diagnostics: () => boolean;
   private diagEl: HTMLElement | null = null;
 
   constructor(
     controller: MindmapController,
     palette: HighlightPalette,
+    insets: KeyboardInsets,
     diagnostics: () => boolean = () => false
   ) {
+    this.insets = insets;
+    this.insets.onChange(() => this.scheduleSettle());
     this.diagnostics = diagnostics;
     this.c = controller;
     const doc = controller.containerEl.ownerDocument;
@@ -119,11 +112,6 @@ export class MobileActionBar {
     // and scheduleSettle() re-measures until iOS has settled.
     doc.defaultView?.addEventListener("resize", this.viewportHandler);
     doc.defaultView?.addEventListener("orientationchange", this.viewportHandler);
-    // Native keyboard height (Capacitor dispatches these on window).
-    doc.defaultView?.addEventListener("keyboardWillShow", this.kbShowHandler);
-    doc.defaultView?.addEventListener("keyboardDidShow", this.kbShowHandler);
-    doc.defaultView?.addEventListener("keyboardWillHide", this.kbHideHandler);
-    doc.defaultView?.addEventListener("keyboardDidHide", this.kbHideHandler);
     // Keyboard tracking: iOS RESIZES the whole webview when the keyboard
     // opens, so the visualViewport "covered" math reads 0 there — the
     // container's bottom already IS the keyboard's top. Track typing
@@ -156,10 +144,6 @@ export class MobileActionBar {
     vv?.removeEventListener("scroll", this.viewportHandler);
     win?.removeEventListener("resize", this.viewportHandler);
     win?.removeEventListener("orientationchange", this.viewportHandler);
-    win?.removeEventListener("keyboardWillShow", this.kbShowHandler);
-    win?.removeEventListener("keyboardDidShow", this.kbShowHandler);
-    win?.removeEventListener("keyboardWillHide", this.kbHideHandler);
-    win?.removeEventListener("keyboardDidHide", this.kbHideHandler);
     for (const id of this.settleTimers) win?.clearTimeout(id);
     this.settleTimers = [];
     this.c.containerEl.removeEventListener("focusin", this.focusHandler);
@@ -269,29 +253,9 @@ export class MobileActionBar {
     this.el.style.setProperty("--mn-bar-lift", `${-lift}px`);
   }
 
-  /** The TRUE bottom of the usable screen area, in layout coordinates:
-   *  the most conservative of three independent keyboard signals. On
-   *  iOS landscape the visualViewport alone is dishonest (claims full
-   *  height with the keyboard up — on-device diagnosis 2026-07-06), so:
-   *  1. visualViewport bottom (honest in portrait),
-   *  2. window height minus the NATIVE keyboard height (Capacitor
-   *     keyboardWillShow events — honest everywhere, when present),
-   *  3. the top of Obsidian's own mobile toolbar, which the app parks
-   *     directly above the keyboard (when visible). */
+  /** The TRUE bottom of the usable screen area (see KeyboardInsets). */
   private visibleBottom(): number {
-    const win = this.el.ownerDocument.defaultView;
-    const vv = win?.visualViewport;
-    if (!win || !vv) return Number.POSITIVE_INFINITY;
-    let bottom = vv.offsetTop + vv.height;
-    if (this.nativeKbHeight > 0) {
-      bottom = Math.min(bottom, win.innerHeight - this.nativeKbHeight);
-    }
-    const toolbar = this.el.ownerDocument.querySelector(".mobile-toolbar");
-    if (toolbar instanceof HTMLElement && toolbar.offsetParent !== null) {
-      const top = toolbar.getBoundingClientRect().top;
-      if (top > 0) bottom = Math.min(bottom, top);
-    }
-    return bottom;
+    return this.insets.visibleBottom();
   }
 
   /** Measure where the bar ACTUALLY ended up; if it pokes below the
@@ -347,7 +311,7 @@ export class MobileActionBar {
     this.diagEl.textContent =
       `win ${win.innerWidth}x${win.innerHeight} | ` +
       `vv ${Math.round(vv.width)}x${Math.round(vv.height)} top${Math.round(vv.offsetTop)} | ` +
-      `useBot${Math.round(vvBottom)} natKB${Math.round(this.nativeKbHeight)} mtb${mtbTop} | ` +
+      `useBot${Math.round(vvBottom)} natKB${Math.round(this.insets.nativeKbHeight)} mtb${mtbTop} | ` +
       `cont ${Math.round(cr.top)}..${Math.round(cr.bottom)} | ` +
       `bar ${Math.round(barRect.top)}..${Math.round(barRect.bottom)} lift${Math.round(this.lift)} | ` +
       `${this.el.classList.contains("mn-kb-up") ? "KB" : "–"} ` +
