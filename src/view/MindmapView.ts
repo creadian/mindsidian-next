@@ -364,7 +364,11 @@ export class MindmapView extends TextFileView {
     this.clipboardEvents.attach();
     this.palette = new HighlightPalette(this.controller);
     if (Platform.isMobile) {
-      this.mobileBar = new MobileActionBar(this.controller, this.palette);
+      this.mobileBar = new MobileActionBar(
+        this.controller,
+        this.palette,
+        () => this.plugin.settings.mobileBarDiagnostics
+      );
     }
     this.registerHoverPreview();
 

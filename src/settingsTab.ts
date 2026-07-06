@@ -203,6 +203,19 @@ export class MindsidianSettingTab extends PluginSettingTab {
             await this.plugin.saveSettingsAndApply();
           })
       );
+
+    new Setting(containerEl)
+      .setName("Action bar diagnostics")
+      .setDesc(
+        "Shows a small overlay with live viewport and keyboard numbers " +
+          "while typing — only for debugging bar positioning. Leave off."
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(s.mobileBarDiagnostics).onChange(async (value) => {
+          s.mobileBarDiagnostics = value;
+          await this.plugin.saveSettingsAndApply();
+        })
+      );
   }
 
   /** Small helper: a numeric text field with a minimum bound. Empty or

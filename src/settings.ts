@@ -41,6 +41,9 @@ export interface MindsidianNextSettings {
   mobileBarBottomOffset: number;
   /** Canvas background CSS color; "" = follow the Obsidian theme. */
   canvasBackground: string;
+  /** On-device overlay with live viewport/keyboard numbers — for
+   *  debugging bar positioning on phones. Off in normal use. */
+  mobileBarDiagnostics: boolean;
   /** plugin-data fold persistence: file path → collapsed node text-paths. */
   foldStates: Record<string, string[]>;
 }
@@ -63,6 +66,7 @@ export const DEFAULT_SETTINGS: MindsidianNextSettings = {
   mobileBarScale: 1,
   mobileBarBottomOffset: 24,
   canvasBackground: "",
+  mobileBarDiagnostics: false,
   foldStates: {},
 };
 

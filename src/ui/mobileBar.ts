@@ -9,6 +9,9 @@
 import type { MindmapController } from "../view/controller";
 import type { HighlightPalette } from "./palette";
 
+/** Gap between the keyboard top and the bar (px). */
+const KEYBOARD_GAP = 8;
+
 interface BarButton {
   icon: string;
   label: string;
@@ -25,8 +28,18 @@ export class MobileActionBar {
   private buttons: Array<{ el: HTMLElement; spec: BarButton }> = [];
   private viewportHandler = (): void => this.scheduleSettle();
   private settleTimers: number[] = [];
+  /** Current keyboard lift in px (kept as state so the post-layout
+   *  verification can adjust it against the bar's MEASURED position). */
+  private lift = 0;
+  private diagnostics: () => boolean;
+  private diagEl: HTMLElement | null = null;
 
-  constructor(controller: MindmapController, palette: HighlightPalette) {
+  constructor(
+    controller: MindmapController,
+    palette: HighlightPalette,
+    diagnostics: () => boolean = () => false
+  ) {
+    this.diagnostics = diagnostics;
     this.c = controller;
     const doc = controller.containerEl.ownerDocument;
     this.el = doc.createElement("div");
@@ -127,6 +140,8 @@ export class MobileActionBar {
     this.settleTimers = [];
     this.c.containerEl.removeEventListener("focusin", this.focusHandler);
     this.c.containerEl.removeEventListener("focusout", this.focusHandler);
+    this.diagEl?.remove();
+    this.diagEl = null;
     this.el.remove();
   }
 
@@ -201,15 +216,12 @@ export class MobileActionBar {
     // bottom offset exists to clear Obsidian's navbar — which iOS hides
     // while typing, so stacking offset + keyboard height put the bar
     // absurdly high. Keyboard down: the CSS bottom rule alone positions.
-    const KEYBOARD_GAP = 8;
     let lift = 0;
     if (covered > 0) {
       const baseBottom = parseFloat(win.getComputedStyle(this.el).bottom) || 0;
       lift = Math.max(0, covered + KEYBOARD_GAP - baseBottom);
     }
-    // Compose via CSS var — writing style.transform here clobbered the
-    // scale(var(--mn-bar-scale)) rule, so the size setting never worked.
-    this.el.style.setProperty("--mn-bar-lift", `${-lift}px`);
+    this.applyLift(lift);
 
     // Landscape + keyboard: barely any screen left above the keyboard —
     // shrink to the two add buttons (mn-compact-keep) so the bar doesn't
@@ -218,5 +230,72 @@ export class MobileActionBar {
     const kbUp = this.el.classList.contains("mn-kb-up");
     const landscape = vv.width > vv.height;
     this.el.classList.toggle("mn-compact", kbUp && landscape);
+
+    // Closed loop: after this position lands, verify the bar is REALLY
+    // inside the visible area and correct against its measured rect —
+    // whichever iOS metric was stale or lying (landscape bug 2026-07-06,
+    // second report: bar invisible despite the computed position).
+    win.requestAnimationFrame(() => this.verifyVisible());
+  }
+
+  /** Compose the lift via CSS var — writing style.transform here
+   *  clobbered the scale(var(--mn-bar-scale)) rule (size setting). */
+  private applyLift(lift: number): void {
+    this.lift = lift;
+    this.el.style.setProperty("--mn-bar-lift", `${-lift}px`);
+  }
+
+  /** Measure where the bar ACTUALLY ended up; if it pokes below the
+   *  visual viewport (under the keyboard) or above the container, adjust
+   *  the lift by the measured error. Runs once per position update; the
+   *  settle burst provides the retries. */
+  private verifyVisible(): void {
+    const win = this.el.ownerDocument.defaultView;
+    const vv = win?.visualViewport;
+    if (!win || !vv || !this.el.isConnected) return;
+    if (!this.el.classList.contains("mn-kb-up")) return; // only while typing
+    const rect = this.el.getBoundingClientRect();
+    if (rect.height === 0) return; // display:none / detached — nothing to fix
+    const vvBottom = vv.offsetTop + vv.height;
+    const containerTop = this.c.containerEl.getBoundingClientRect().top;
+    let corrected = this.lift;
+    // Poking below the keyboard line → push up by the measured overshoot.
+    const overshoot = rect.bottom + KEYBOARD_GAP - vvBottom;
+    if (overshoot > 1) corrected += overshoot;
+    // Pushed above the visible/container top → bring it back down, but
+    // never below the keyboard line again (keyboard wins when both bind).
+    const maxTop = Math.max(vv.offsetTop, containerTop) + 4;
+    if (rect.top - (corrected - this.lift) < maxTop) {
+      corrected = Math.min(corrected, this.lift + rect.top - maxTop);
+    }
+    if (Math.abs(corrected - this.lift) > 1) this.applyLift(Math.max(0, corrected));
+    this.updateDiagnostics(rect, vvBottom);
+  }
+
+  /** Optional on-device overlay with the live numbers (settings toggle).
+   *  Exists so positioning bugs can be diagnosed from a screenshot
+   *  instead of blind iteration. */
+  private updateDiagnostics(barRect: DOMRect, vvBottom: number): void {
+    const win = this.el.ownerDocument.defaultView;
+    const vv = win?.visualViewport;
+    if (!win || !vv) return;
+    if (!this.diagnostics()) {
+      this.diagEl?.remove();
+      this.diagEl = null;
+      return;
+    }
+    if (!this.diagEl) {
+      this.diagEl = this.el.ownerDocument.createElement("div");
+      this.diagEl.className = "mn-bar-diag";
+      this.c.containerEl.appendChild(this.diagEl);
+    }
+    const cr = this.c.containerEl.getBoundingClientRect();
+    this.diagEl.textContent =
+      `win ${win.innerWidth}x${win.innerHeight} | ` +
+      `vv ${Math.round(vv.width)}x${Math.round(vv.height)} top${Math.round(vv.offsetTop)} ` +
+      `bot${Math.round(vvBottom)} | cont ${Math.round(cr.top)}..${Math.round(cr.bottom)} | ` +
+      `bar ${Math.round(barRect.top)}..${Math.round(barRect.bottom)} lift${Math.round(this.lift)} | ` +
+      `${this.el.classList.contains("mn-kb-up") ? "KB" : "–"} ` +
+      `${this.el.classList.contains("mn-compact") ? "CMP" : ""}`;
   }
 }
