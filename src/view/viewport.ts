@@ -219,11 +219,23 @@ export class Viewport {
 
   // ---------------------------------------------------------------- private
 
+  /** Last quantized --mn-scale actually written (see apply()). */
+  private lastScaleVar = 0;
+
   private apply(): void {
     this.world.style.transform = `translate(${this.t.x}px, ${this.t.y}px) scale(${this.t.scale})`;
     // Expose the zoom to CSS so e.g. the fold-dot tap target can be
-    // inverse-scaled (stays finger-sized at any zoom). Styling stays in CSS.
-    this.world.style.setProperty("--mn-scale", String(this.t.scale));
+    // inverse-scaled (stays finger-sized at any zoom). Styling stays in
+    // CSS. Quantized to 5% steps and written only on change: a CSS-var
+    // write invalidates styles across every node, and doing that on every
+    // pinch frame helped push the iOS webview into out-of-memory restarts
+    // on long zoom sessions. The transform above stays per-frame (cheap,
+    // compositor-only).
+    const quantized = Math.round(this.t.scale * 20) / 20;
+    if (quantized !== this.lastScaleVar) {
+      this.lastScaleVar = quantized;
+      this.world.style.setProperty("--mn-scale", String(quantized));
+    }
   }
 
   private cancelAnimation(): void {
