@@ -17,7 +17,7 @@ import {
 import type MindsidianNextPlugin from "../main";
 import type { MindDocument, ModelSettings } from "../model/types";
 import { parseDocument } from "../model/parse";
-import { serializeDocument } from "../model/serialize";
+import { allLinesContained, serializeDocument } from "../model/serialize";
 import { DEFAULT_FRONTMATTER, readZoomFromPrefix } from "../model/region";
 import { applyCollapsedPaths, collectCollapsedPaths } from "../model/tree";
 import { toModelSettings, toRenderSettings } from "../settings";
@@ -158,7 +158,9 @@ export class MindmapView extends TextFileView {
     // External change (sync, another app, a second view on this file):
     // the disk is the source of truth, so we rebuild from it — but if
     // edits were still waiting on the debounced save (or an inline edit
-    // was open), they are lost in the reload. Never silently: say so.
+    // was open), they MAY be lost in the reload. Obsidian usually
+    // auto-merges external changes, preserving our edits — so verify
+    // against the incoming text and warn only about genuine loss.
     if (
       !clear &&
       this.controller &&
@@ -166,16 +168,52 @@ export class MindmapView extends TextFileView {
         this.controller.editor.isEditing ||
         Date.now() - this.lastSaveAt < 3000)
     ) {
-      new Notice(
-        "Mindsidian Next: this file was changed outside this view — " +
-          "reloaded from disk; your last few seconds of edits were discarded."
-      );
+      if (this.pendingEditsSurvivedIn(data)) {
+        console.info(
+          "Mindsidian Next: external reload — all pending edits are present " +
+            "in the incoming text; no data was lost."
+        );
+      } else {
+        new Notice(
+          "Mindsidian Next: this file was changed outside this view — " +
+            "reloaded from disk; some of your last edits are NOT in the " +
+            "new version and were discarded."
+        );
+      }
     }
     this.savePending = false;
     // Real external content replaced our last emission — a LATER write of
     // those old bytes must rebuild, not be mistaken for our own echo.
     if (data !== this.lastEmittedText) this.lastEmittedText = null;
     this.rebuild(data);
+  }
+
+  /**
+   * Did the state this view holds (including a still-open inline edit)
+   * fully make it into the incoming external text? Folds an open edit
+   * into the model first (safe: the model is discarded by the rebuild
+   * right after), serializes, and checks line containment. Any doubt —
+   * commit or serialize failing — counts as NOT survived, so the
+   * data-loss warning errs toward showing.
+   */
+  private pendingEditsSurvivedIn(incoming: string): boolean {
+    const controller = this.controller;
+    if (!controller) return false;
+    if (controller.editor.isEditing) {
+      try {
+        controller.commitEdit();
+      } catch (error) {
+        console.error("Mindsidian Next: commit-for-reload-check failed", error);
+        return false;
+      }
+    }
+    try {
+      const ours = serializeDocument(controller.doc, this.modelSettings);
+      return ours === incoming || allLinesContained(ours, incoming);
+    } catch (error) {
+      console.error("Mindsidian Next: reload-check serialize failed", error);
+      return false;
+    }
   }
 
   /**

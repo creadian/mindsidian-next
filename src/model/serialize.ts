@@ -177,3 +177,27 @@ export function serializeDocument(
 ): string {
   return doc.prefix + serializeBody(doc.root, settings) + doc.suffix;
 }
+
+/**
+ * True when every non-blank line of `ours` (with multiplicity, ignoring
+ * trailing whitespace) also appears somewhere in `incoming`. The view uses
+ * this on an external reload to decide whether pending edits were actually
+ * discarded: Obsidian often auto-merges an external change, and the merged
+ * text still contains every line we held — warning about data loss then
+ * would be a false alarm.
+ */
+export function allLinesContained(ours: string, incoming: string): boolean {
+  const counts = new Map<string, number>();
+  for (const line of incoming.split("\n")) {
+    const key = line.replace(/\s+$/, "");
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  for (const line of ours.split("\n")) {
+    const key = line.replace(/\s+$/, "");
+    if (key === "") continue;
+    const left = counts.get(key) ?? 0;
+    if (left === 0) return false;
+    counts.set(key, left - 1);
+  }
+  return true;
+}
