@@ -50,6 +50,20 @@ export class MobileActionBar {
         e.stopPropagation();
         spec.action();
       });
+      // The tap's TRAILING native events (touchend → synthesized click)
+      // still land on this button AFTER the action moved focus into a
+      // contenteditable — iOS answers a trailing tap on a non-editable
+      // control by dismissing/re-summoning the keyboard (the residual
+      // fast blink). Swallow them; the action has already run. (v1 has
+      // no blink because its buttons act on the native click itself.)
+      btn.addEventListener("touchend", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
       this.buttons.push({ el: btn, spec });
       this.el.appendChild(btn);
     }

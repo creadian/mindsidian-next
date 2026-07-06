@@ -55,9 +55,18 @@ export class NodeEditor {
   ): void {
     if (this.active) return; // commit/cancel first — controller's job
     nodeEl.classList.add("is-editing");
-    // Show the raw markdown, not the rendered HTML.
-    contentEl.textContent = node.text;
-    contentEl.setAttribute("contenteditable", supportsPlainTextOnly() ? "plaintext-only" : "true");
+    // Show the raw markdown, not the rendered HTML. In a handoff the
+    // element is already prepared AND focused — rewriting it here would
+    // restart the iOS input session (keyboard blink), so skip.
+    const prepared = this.handoffEl === contentEl;
+    this.handoffEl = null;
+    if (!prepared) {
+      contentEl.textContent = node.text;
+      contentEl.setAttribute(
+        "contenteditable",
+        supportsPlainTextOnly() ? "plaintext-only" : "true"
+      );
+    }
 
     const edit: ActiveEdit = {
       node,
@@ -97,19 +106,26 @@ export class NodeEditor {
     placeCaret(contentEl, options?.selectAll === true);
   }
 
+  /** Element fully prepared by prepareHandoff — begin() must not touch
+   *  its DOM again (post-focus mutations restart the iOS input session). */
+  private handoffEl: HTMLElement | null = null;
+
   /**
    * Keyboard handoff (iOS): before committing the CURRENT edit to switch
-   * to another node, make the target editable and focused FIRST, so focus
-   * travels editable→editable with no stop on body or the focus anchor —
-   * any non-editable stop makes iOS dismiss and re-summon the keyboard
-   * (visible blink when adding a sibling/child from the mobile bar).
+   * to another node, fully prepare the target (raw text, editable) and
+   * focus it FIRST, so focus travels editable→editable with no stop on
+   * body or the focus anchor — any non-editable stop makes iOS dismiss
+   * and re-summon the keyboard (visible blink when adding a
+   * sibling/child from the mobile bar).
    */
-  prepareHandoff(contentEl: HTMLElement): void {
+  prepareHandoff(node: MindNode, contentEl: HTMLElement): void {
+    contentEl.textContent = node.text;
     contentEl.setAttribute(
       "contenteditable",
       supportsPlainTextOnly() ? "plaintext-only" : "true"
     );
     contentEl.focus({ preventScroll: true });
+    this.handoffEl = contentEl;
   }
 
   /**

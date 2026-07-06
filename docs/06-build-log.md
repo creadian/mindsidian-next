@@ -417,3 +417,18 @@ keepDomFocus (skips the anchor refocus, incl. the empty-node-removal
 branch), so focus travels editable-to-editable with zero gaps.
 If the blink STILL persists on-device, next lever: a persistent hidden
 input as keyboard holder (v1-style) — do not retry micro-timing fixes.
+
+---
+
+## 2026-07-06 — alpha.9: the residual fast blink was the bar tap's TRAILING click
+
+v1 archaeology (no blink there, and NO keyboard trick either — its
+buttons act on the native click itself): v2's bar acts on pointerdown,
+so the tap's trailing native events (touchend, synthesized click) still
+landed on the button AFTER the handoff had moved focus into the new
+contenteditable — iOS answers a trailing tap on a non-editable control
+by dismissing/re-summoning the keyboard. Fix: bar buttons swallow
+touchend + click (preventDefault + stopPropagation; action already ran
+on pointerdown). Plus handoff hygiene: prepareHandoff now fully
+prepares the target (raw text + editable) BEFORE focusing, and begin()
+skips all DOM writes on a prepared element — zero post-focus mutations.

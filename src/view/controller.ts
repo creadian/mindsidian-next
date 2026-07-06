@@ -223,7 +223,7 @@ export class MindmapController {
       // Edit-to-edit switch: hand the keyboard over BEFORE the commit
       // tears the old editor down (see Editor.prepareHandoff), and skip
       // the anchor refocus — the target already owns the focus.
-      this.editor.prepareHandoff(contentEl);
+      this.editor.prepareHandoff(node, contentEl);
       this.commitEdit({ keepDomFocus: true });
     }
     this.selection.select(id);
