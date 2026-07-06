@@ -81,16 +81,26 @@ export function registerCommands(plugin: MindsidianNextPlugin): void {
   plugin.addCommand({
     id: "toggle-view",
     name: "Toggle markdown/mindmap view",
+    // Position-keeping in BOTH directions (owner request 2026-07-07):
+    // map → editor lands on the selected node's line; editor → map lands
+    // on the cursor line's node. One hotkey = one seamless surface.
     checkCallback: (checking) => {
       const mindmap = plugin.app.workspace.getActiveViewOfType(MindmapView);
       if (mindmap) {
-        if (!checking) mindmap.openAsMarkdown();
+        if (!checking) {
+          const selected = mindmap.controller?.selection.primary ?? null;
+          if (selected) void mindmap.revealNodeInMarkdown(selected);
+          else mindmap.openAsMarkdown();
+        }
         return true;
       }
       const markdown = plugin.app.workspace.getActiveViewOfType(MarkdownView);
       const file = markdown?.file;
       if (!markdown || !(file instanceof TFile) || file.extension !== "md") return false;
-      if (!checking) void plugin.setMindmapView(markdown.leaf, file.path, true);
+      if (!checking) {
+        plugin.parkPendingReveal(file.path, markdown.editor.getCursor().line);
+        void plugin.setMindmapView(markdown.leaf, file.path, true);
+      }
       return true;
     },
   });
