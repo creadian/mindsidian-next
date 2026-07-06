@@ -745,6 +745,27 @@ export class MindmapController {
     this.select(this.ctx.root.id);
     this.centerOnNode(this.ctx.root.id);
   }
+
+  /** Jump target (markdown → mindmap reveal): expand any collapsed
+   *  ancestors (one undoable fold step, same edit semantics as a manual
+   *  unfold), select the node, center on it once layout includes it. */
+  revealById(id: string): void {
+    const node = this.ctx.index.get(id);
+    if (!node) return;
+    const commands: Command[] = [];
+    for (let p = node.parent; p; p = p.parent) {
+      if (p.collapsed) commands.push(new SetCollapsedCommand(p.id, false));
+    }
+    if (commands.length > 0) {
+      this.execute(new CompositeCommand(commands), {
+        countsAsEdit: this.foldTouchesMarkdown(),
+      });
+    }
+    this.select(id);
+    // A second refresh await guarantees the (possibly just-expanded)
+    // node has a measured layout position before centering.
+    void this.refresh().then(() => this.centerOnNode(id, false));
+  }
 }
 
 // Clipboard IO kept tiny and failure-tolerant (clipboard.ts stays pure).

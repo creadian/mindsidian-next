@@ -19,6 +19,7 @@ import type { MindDocument, ModelSettings } from "../model/types";
 import { parseDocument } from "../model/parse";
 import {
   allLinesContained,
+  nodeIdAtLine,
   nodeLineInDocument,
   serializeDocument,
 } from "../model/serialize";
@@ -474,6 +475,13 @@ export class MindmapView extends TextFileView {
     const current = viewport.transform.scale;
     if (current > 0 && target !== current) viewport.zoomAtCenter(target / current);
     controller.focusKeyboard();
+
+    // Markdown → mindmap jump: consume a cursor-line reveal parked by the
+    // "Show current line in mindmap" command before the view swap.
+    const pendingLine = this.plugin.takePendingReveal(this.file?.path ?? null);
+    if (pendingLine !== null) {
+      controller.revealById(nodeIdAtLine(controller.doc, pendingLine, this.modelSettings));
+    }
 
     // Plugin reload (e.g. a BRAT update) re-creates the view while node
     // measurements are still settling, so the recenter above can aim at

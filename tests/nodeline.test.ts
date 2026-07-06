@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { parseDocument } from "../src/model/parse";
-import { nodeLineInDocument, serializeDocument } from "../src/model/serialize";
+import { nodeIdAtLine, nodeLineInDocument, serializeDocument } from "../src/model/serialize";
 import { walk } from "../src/model/tree";
 import type { MindDocument, MindNode } from "../src/model/types";
 
@@ -65,6 +65,39 @@ test("fence node line points at its anchor bullet, not the blank line", () => {
   const line = nodeLineInDocument(fenceDoc, fence.id);
   const lines = serializeDocument(fenceDoc).split("\n");
   assert.equal(lines[line as number].trim(), "-");
+});
+
+test("nodeIdAtLine: exact node lines, continuation lines, frontmatter", () => {
+  const doc = docOf(INPUT);
+  const lines = serializeDocument(doc).split("\n");
+  const lineOf = (startsWith: string): number =>
+    lines.findIndex((l) => l.trimStart().startsWith(startsWith));
+  // Cursor exactly on a node's line → that node.
+  assert.equal(
+    nodeIdAtLine(doc, lineOf("- alpha")),
+    findByText(doc, "alpha").id
+  );
+  assert.equal(
+    nodeIdAtLine(doc, lineOf("## Section B")),
+    findByText(doc, "Section B").id
+  );
+  // Cursor on the blank line between sections → the node above it.
+  assert.equal(
+    nodeIdAtLine(doc, lineOf("## Section B") - 1),
+    findByText(doc, "beta").id
+  );
+  // Cursor inside the frontmatter → the root.
+  assert.equal(nodeIdAtLine(doc, 0), findByText(doc, "Root").id);
+  // Cursor past the end → the last node.
+  assert.equal(nodeIdAtLine(doc, 999), findByText(doc, "gamma").id);
+});
+
+test("nodeIdAtLine: fence interior lines belong to the fence node", () => {
+  const fenceDoc = docOf("# R\n\n## H\n\n-\n  ```js\n  x()\n  ```\n\n- after\n");
+  const fence = findByText(fenceDoc, "```js\nx()\n```");
+  const lines = serializeDocument(fenceDoc).split("\n");
+  const interior = lines.findIndex((l) => l.includes("x()"));
+  assert.equal(nodeIdAtLine(fenceDoc, interior), fence.id);
 });
 
 test("unknown id yields null; lineMap does not alter the emission", () => {

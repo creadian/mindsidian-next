@@ -194,6 +194,33 @@ export function serializeDocument(
   return doc.prefix + serializeBody(doc.root, settings) + doc.suffix;
 }
 
+/** The node whose emitted lines contain `line` (0-based, full document
+ *  text): the node with the greatest start line ≤ `line`. Falls back to
+ *  the root (cursor in the frontmatter/preamble). Reverse companion of
+ *  nodeLineInDocument, for the markdown → mindmap jump. */
+export function nodeIdAtLine(
+  doc: MindDocument,
+  line: number,
+  settings: ModelSettings = DEFAULT_MODEL_SETTINGS
+): string {
+  const lineMap = new Map<string, number>();
+  serializeBody(doc.root, settings, lineMap);
+  let prefixLines = 0;
+  for (let i = 0; i < doc.prefix.length; i++) {
+    if (doc.prefix[i] === "\n") prefixLines++;
+  }
+  let best = doc.root.id;
+  let bestLine = Number.NEGATIVE_INFINITY;
+  for (const [id, bodyLine] of lineMap) {
+    const abs = bodyLine + prefixLines;
+    if (abs <= line && abs > bestLine) {
+      best = id;
+      bestLine = abs;
+    }
+  }
+  return best;
+}
+
 /** 0-based line index of a node's first content line in the FULL document
  *  text (prefix included), or null for an unknown id. Read-only: uses the
  *  same emission as serializeDocument without touching the file. */

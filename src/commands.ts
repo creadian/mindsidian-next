@@ -95,6 +95,26 @@ export function registerCommands(plugin: MindsidianNextPlugin): void {
     },
   });
 
+  // Reverse of the context menu's "Show in Markdown view": from the
+  // markdown editor of a mindmap file, jump to the node that owns the
+  // cursor line. Available only when the file IS a mindmap.
+  plugin.addCommand({
+    id: "reveal-in-mindmap",
+    name: "Show current line in mindmap",
+    checkCallback: (checking) => {
+      const markdown = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+      const file = markdown?.file;
+      if (!markdown || !(file instanceof TFile) || file.extension !== "md") return false;
+      const fm = plugin.app.metadataCache.getFileCache(file)?.frontmatter;
+      if (fm == null || fm["mindmap-plugin"] == null) return false;
+      if (!checking) {
+        plugin.parkPendingReveal(file.path, markdown.editor.getCursor().line);
+        void plugin.setMindmapView(markdown.leaf, file.path, true);
+      }
+      return true;
+    },
+  });
+
   plugin.addCommand({
     id: "new-mindmap",
     name: "Create new mindmap",

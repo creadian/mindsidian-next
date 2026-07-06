@@ -32,6 +32,22 @@ export default class MindsidianNextPlugin extends Plugin {
    *  auto-swap for that file until it is explicitly opened as mindmap. */
   private fileModes = new Map<string, "markdown" | "mindmap">();
 
+  /** Cursor-line reveal parked by "Show current line in mindmap" for the
+   *  mindmap view that is about to open (consumed by its first paint). */
+  private pendingReveal: { path: string; line: number } | null = null;
+
+  parkPendingReveal(path: string, line: number): void {
+    this.pendingReveal = { path, line };
+  }
+
+  /** The parked line for `path`, or null. Consumes the parked value. */
+  takePendingReveal(path: string | null): number | null {
+    const pending = this.pendingReveal;
+    if (!pending || pending.path !== path) return null;
+    this.pendingReveal = null;
+    return pending.line;
+  }
+
   /** Debounced persist for fold text-paths (plugin-data mode). */
   private saveFoldStates = debounce(
     () => void this.saveData(this.settings),
@@ -110,15 +126,27 @@ export default class MindsidianNextPlugin extends Plugin {
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file, _source, leaf) => {
         if (file instanceof TFile && file.extension === "md") {
-          menu.addItem((item) =>
-            item
-              .setTitle("Open as mindmap")
-              .setIcon("git-fork")
-              .onClick(() => {
-                const target = leaf ?? this.app.workspace.getLeaf("tab");
-                void this.setMindmapView(target, file.path, true);
-              })
-          );
+          // Mirror both directions (owner report 2026-07-07: the mindmap
+          // view offered no "Open as markdown" in its ⋮ menu — this
+          // file-menu path is the one that reliably shows on mobile).
+          if (leaf?.view instanceof MindmapView) {
+            menu.addItem((item) =>
+              item
+                .setTitle("Open as markdown")
+                .setIcon("file-text")
+                .onClick(() => void this.setMarkdownView(leaf, file.path))
+            );
+          } else {
+            menu.addItem((item) =>
+              item
+                .setTitle("Open as mindmap")
+                .setIcon("git-fork")
+                .onClick(() => {
+                  const target = leaf ?? this.app.workspace.getLeaf("tab");
+                  void this.setMindmapView(target, file.path, true);
+                })
+            );
+          }
         }
         if (file instanceof TFolder) {
           menu.addItem((item) =>
