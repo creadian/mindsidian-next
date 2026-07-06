@@ -184,10 +184,11 @@ export default class MindsidianNextPlugin extends Plugin {
     });
   }
 
-  /** Switch a leaf back to markdown; the choice sticks for this file. */
-  setMarkdownView(leaf: WorkspaceLeaf, path: string): void {
+  /** Switch a leaf back to markdown; the choice sticks for this file.
+   *  Awaitable so callers can act on the new view (jump to a line). */
+  setMarkdownView(leaf: WorkspaceLeaf, path: string): Promise<void> {
     this.fileModes.set(path, "markdown");
-    void leaf.setViewState({
+    return leaf.setViewState({
       type: "markdown",
       state: { file: path, mode: "source" },
       active: true,

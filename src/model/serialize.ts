@@ -101,14 +101,19 @@ export function serializeSubtreesAsBullets(nodes: MindNode[]): string {
   return md.trim();
 }
 
-/** Serialize a tree to a markdown body (no frontmatter, no prefix). */
+/** Serialize a tree to a markdown body (no frontmatter, no prefix).
+ *  `lineMap` (optional, does NOT alter the emission): filled with each
+ *  node id → 0-based line index of the node's first content line in the
+ *  returned body — used to jump to a node in the markdown editor. */
 export function serializeBody(
   root: MindNode,
-  settings: ModelSettings = DEFAULT_MODEL_SETTINGS
+  settings: ModelSettings = DEFAULT_MODEL_SETTINGS,
+  lineMap?: Map<string, number>
 ): string {
   const headLevel = Math.min(6, Math.max(1, settings.headLevel));
   const emitFoldIds = settings.foldStatePersistence === "markdown";
   let md = "";
+  let lineNo = 0; // newlines emitted so far (tracked only for lineMap)
 
   const emitHeading = (node: MindNode, level: number, ending: string): void => {
     const hashes = "#".repeat(level + 1);
@@ -149,6 +154,7 @@ export function serializeBody(
   const visit = (node: MindNode, level: number, bulletDepth: number | null): void => {
     const ending = node.collapsed && emitFoldIds ? ` ^${node.id}` : "";
     let childBulletDepth: number | null;
+    const before = md.length;
 
     if (bulletDepth === null && level < headLevel) {
       emitHeading(node, level, ending);
@@ -161,6 +167,16 @@ export function serializeBody(
       const depth = bulletDepth ?? level - headLevel;
       emitBullet(node, depth, ending);
       childBulletDepth = depth + 1;
+    }
+
+    if (lineMap) {
+      // First CONTENT line of this node's chunk: skip the blank line(s)
+      // some emissions prepend (headings, fences).
+      const chunk = md.slice(before);
+      let lead = 0;
+      while (chunk[lead] === "\n") lead++;
+      lineMap.set(node.id, lineNo + lead);
+      for (let i = 0; i < chunk.length; i++) if (chunk[i] === "\n") lineNo++;
     }
 
     for (const child of node.children) visit(child, level + 1, childBulletDepth);
@@ -176,6 +192,25 @@ export function serializeDocument(
   settings: ModelSettings = DEFAULT_MODEL_SETTINGS
 ): string {
   return doc.prefix + serializeBody(doc.root, settings) + doc.suffix;
+}
+
+/** 0-based line index of a node's first content line in the FULL document
+ *  text (prefix included), or null for an unknown id. Read-only: uses the
+ *  same emission as serializeDocument without touching the file. */
+export function nodeLineInDocument(
+  doc: MindDocument,
+  nodeId: string,
+  settings: ModelSettings = DEFAULT_MODEL_SETTINGS
+): number | null {
+  const lineMap = new Map<string, number>();
+  serializeBody(doc.root, settings, lineMap);
+  const bodyLine = lineMap.get(nodeId);
+  if (bodyLine === undefined) return null;
+  let prefixLines = 0;
+  for (let i = 0; i < doc.prefix.length; i++) {
+    if (doc.prefix[i] === "\n") prefixLines++;
+  }
+  return prefixLines + bodyLine;
 }
 
 /**

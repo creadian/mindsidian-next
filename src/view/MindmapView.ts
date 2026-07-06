@@ -17,7 +17,11 @@ import {
 import type MindsidianNextPlugin from "../main";
 import type { MindDocument, ModelSettings } from "../model/types";
 import { parseDocument } from "../model/parse";
-import { allLinesContained, serializeDocument } from "../model/serialize";
+import {
+  allLinesContained,
+  nodeLineInDocument,
+  serializeDocument,
+} from "../model/serialize";
 import { DEFAULT_FRONTMATTER, readZoomFromPrefix } from "../model/region";
 import { applyCollapsedPaths, collectCollapsedPaths } from "../model/tree";
 import { toModelSettings, toRenderSettings } from "../settings";
@@ -33,6 +37,7 @@ import { MobileActionBar } from "../ui/mobileBar";
 import { insertWikilink } from "../ui/wikilink";
 import { NodeLinkSuggest } from "./linksuggest";
 import { WikilinkModal } from "../ui/wikilinkModal";
+import { showNodeMenu } from "../ui/nodeMenu";
 
 export const MINDMAP_VIEW_TYPE = "mindsidian-next";
 
@@ -144,7 +149,27 @@ export class MindmapView extends TextFileView {
   /** Switch this leaf back to the plain markdown editor (sticks per file). */
   openAsMarkdown(): void {
     const path = this.file?.path;
-    if (path) this.plugin.setMarkdownView(this.leaf, path);
+    if (path) void this.plugin.setMarkdownView(this.leaf, path);
+  }
+
+  /** Context-menu "Show in Markdown view": switch to the markdown editor
+   *  and land on this node's line. Read-only — the line is computed from
+   *  the same emission a save would write, nothing touches the file. */
+  async revealNodeInMarkdown(nodeId: string): Promise<void> {
+    const controller = this.controller;
+    const path = this.file?.path;
+    if (!controller || !path) return;
+    // Commit an in-flight edit so the editor shows what the map shows.
+    if (controller.editor.isEditing) controller.commitEdit();
+    const line = nodeLineInDocument(controller.doc, nodeId, this.modelSettings);
+    const leaf = this.leaf;
+    await this.plugin.setMarkdownView(leaf, path);
+    if (line === null) return;
+    // eState {line} scrolls to and flash-highlights the line (the same
+    // mechanism search results use). Applied twice: the editor may still
+    // be laying out right after the view swap.
+    leaf.setEphemeralState({ line });
+    window.setTimeout(() => leaf.setEphemeralState({ line }), 150);
   }
 
   // ------------------------------------------------------- load (disk → view)
@@ -399,6 +424,17 @@ export class MindmapView extends TextFileView {
     };
 
     this.pointer = new PointerController(this.controller, world);
+    this.pointer.onNodeMenu = (nodeId, x, y) => {
+      const controller = this.controller;
+      if (!controller) return;
+      showNodeMenu({
+        controller,
+        nodeId,
+        x,
+        y,
+        revealInMarkdown: (id) => void this.revealNodeInMarkdown(id),
+      });
+    };
     this.pointer.attach();
     this.keyboard = new KeyboardController(
       this.controller,

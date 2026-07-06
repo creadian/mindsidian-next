@@ -72,6 +72,10 @@ export class PointerController {
   private marquee: MarqueeState | null = null;
   private touchCount = 0;
   private lastTap: { id: string; time: number } | null = null;
+  /** Node context menu callback (set by the view). Desktop: right-click.
+   *  Touch: long-press released IN PLACE (a long-press that MOVES is the
+   *  existing drag-to-reparent — the two gestures share the hold). */
+  onNodeMenu: ((nodeId: string, x: number, y: number) => void) | null = null;
 
   private onPointerDown = (e: PointerEvent): void => this.handleDown(e);
   private onPointerMove = (e: PointerEvent): void => this.handleMove(e);
@@ -95,6 +99,18 @@ export class PointerController {
       e.touches.length > 1; // pinch (viewport's)
     if (gestureActive) e.preventDefault();
   };
+  /** Right-click on a node → context menu (desktop; also mouse on iPad). */
+  private onContextMenu = (e: MouseEvent): void => {
+    if (!this.onNodeMenu || this.c.isEditing) return; // native menu in edits
+    const target = e.target as HTMLElement | null;
+    const nodeEl = target?.closest?.(".mn-node") as HTMLElement | null;
+    const nodeId = nodeEl?.dataset.mnId;
+    if (!nodeId) return; // empty canvas: leave the default menu alone
+    e.preventDefault();
+    e.stopPropagation();
+    if (!this.c.selection.isSelected(nodeId)) this.c.select(nodeId);
+    this.onNodeMenu(nodeId, e.clientX, e.clientY);
+  };
 
 
   constructor(controller: MindmapController, worldEl: HTMLElement) {
@@ -112,6 +128,7 @@ export class PointerController {
     this.containerEl.addEventListener("pointercancel", this.onPointerCancel);
     this.containerEl.addEventListener("touchstart", this.onTouchStart, { passive: true });
     this.containerEl.addEventListener("touchmove", this.onTouchMove, { passive: false });
+    this.containerEl.addEventListener("contextmenu", this.onContextMenu);
   }
 
   destroy(): void {
@@ -122,6 +139,7 @@ export class PointerController {
     this.containerEl.removeEventListener("pointercancel", this.onPointerCancel);
     this.containerEl.removeEventListener("touchstart", this.onTouchStart);
     this.containerEl.removeEventListener("touchmove", this.onTouchMove);
+    this.containerEl.removeEventListener("contextmenu", this.onContextMenu);
     this.c.cancelMarquee = null;
   }
 
@@ -288,6 +306,22 @@ export class PointerController {
     if (e.pointerType === "touch") this.touchCount = Math.max(0, this.touchCount - 1);
 
     if (this.drag) {
+      // Touch long-press released IN PLACE: never a drag — it's the
+      // context-menu gesture (hold on a node, let go without moving).
+      const held = this.press;
+      if (
+        held &&
+        !held.moved &&
+        held.pointerType !== "mouse" &&
+        held.nodeId &&
+        this.onNodeMenu
+      ) {
+        this.cancelDrag();
+        this.press = null;
+        if (!this.c.selection.isSelected(held.nodeId)) this.c.select(held.nodeId);
+        this.onNodeMenu(held.nodeId, held.startX, held.startY);
+        return;
+      }
       this.commitDrag();
       this.press = null;
       return;
