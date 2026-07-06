@@ -429,9 +429,15 @@
    safe area from CSS only. */
 .mn-mobile-bar {
   position: absolute;
-  left: 50%;
+  /* Centering via inset + auto margins — the previous left:50% plus a
+     separate `translate` property could land the bar far off-screen when
+     iOS WebKit dropped the individual-transform property under
+     compositor pressure (seen on-device: only the last icons visible). */
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: fit-content;
   bottom: calc(var(--mn-bar-bottom, 24px) + env(safe-area-inset-bottom, 0px));
-  translate: -50% 0;
   display: flex;
   gap: 4px;
   padding: 6px;
