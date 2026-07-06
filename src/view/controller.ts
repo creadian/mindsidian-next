@@ -633,11 +633,18 @@ export class MindmapController {
 
   // ------------------------------------------------------------ clipboard
 
+  /** The selection encoded as markdown bullets, or null when nothing is
+   *  selected. Synchronous — the native copy/cut event path needs the
+   *  payload inside the event handler. */
+  copyPayload(): string | null {
+    const nodes = this.selectedTopNodes();
+    if (nodes.length === 0) return null;
+    return encodeSubtrees(nodes) || null;
+  }
+
   /** Returns true when the payload actually reached the system clipboard. */
   async copySelection(): Promise<boolean> {
-    const nodes = this.selectedTopNodes();
-    if (nodes.length === 0) return false;
-    const payload = encodeSubtrees(nodes);
+    const payload = this.copyPayload();
     if (!payload) return false;
     return writeClipboard(payload);
   }
@@ -655,11 +662,13 @@ export class MindmapController {
     this.deleteSelection();
   }
 
-  /** Paste subtrees as children of the selection; re-writes the clipboard
-   *  (fresh ids) so paste can repeat. */
-  async pasteIntoSelection(): Promise<void> {
+  /** Paste subtrees as children of the selection. `clipboardText` comes
+   *  from a native paste event when available; otherwise the clipboard is
+   *  read directly. Every decode builds fresh nodes, so repeat-paste is
+   *  safe and the user's clipboard is never rewritten. */
+  async pasteIntoSelection(clipboardText?: string): Promise<void> {
     const target = this.primaryNode ?? this.ctx.root;
-    const text = await readClipboard();
+    const text = clipboardText ?? (await readClipboard());
     const subtrees = decodeClipboard(text);
     if (!subtrees) return;
     const commands: Command[] = [];
@@ -668,7 +677,6 @@ export class MindmapController {
       commands.push(new AddNodeCommand(target.id, target.children.length + i, tree))
     );
     this.execute(new CompositeCommand(commands));
-    await writeClipboard(encodeSubtrees(subtrees)); // fresh ids for next paste
   }
 
   // ------------------------------------------------------------ history

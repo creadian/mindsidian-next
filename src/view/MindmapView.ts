@@ -26,6 +26,7 @@ import { Viewport, clampScale } from "./viewport";
 import { MindmapController } from "./controller";
 import { PointerController } from "../input/pointer";
 import { KeyboardController } from "../input/keyboard";
+import { ClipboardEventController } from "../input/clipboardEvents";
 import { HighlightPalette } from "../ui/palette";
 import { MobileActionBar } from "../ui/mobileBar";
 import { insertWikilink } from "../ui/wikilink";
@@ -57,6 +58,7 @@ export class MindmapView extends TextFileView {
   private viewport: Viewport | null = null;
   private pointer: PointerController | null = null;
   private keyboard: KeyboardController | null = null;
+  private clipboardEvents: ClipboardEventController | null = null;
   private palette: HighlightPalette | null = null;
   /** Inline "[[" autocomplete, one per (cached) node content element. */
   private linkSuggests = new WeakMap<HTMLElement, NodeLinkSuggest>();
@@ -355,6 +357,11 @@ export class MindmapView extends TextFileView {
       () => this.app.workspace.getActiveViewOfType(MindmapView) === this
     );
     this.keyboard.attach();
+    this.clipboardEvents = new ClipboardEventController(
+      this.controller,
+      () => this.app.workspace.getActiveViewOfType(MindmapView) === this
+    );
+    this.clipboardEvents.attach();
     this.palette = new HighlightPalette(this.controller);
     if (Platform.isMobile) {
       this.mobileBar = new MobileActionBar(this.controller, this.palette);
@@ -590,6 +597,7 @@ export class MindmapView extends TextFileView {
     if (zoom !== null) this.parkedZoom = zoom;
     this.mobileBar?.destroy();
     this.palette?.destroy();
+    this.clipboardEvents?.destroy();
     this.keyboard?.destroy();
     this.pointer?.destroy();
     this.controller?.destroy();
@@ -597,6 +605,7 @@ export class MindmapView extends TextFileView {
     this.viewport?.destroy();
     this.mobileBar = null;
     this.palette = null;
+    this.clipboardEvents = null;
     this.keyboard = null;
     this.pointer = null;
     this.controller = null;

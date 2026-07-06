@@ -1,7 +1,8 @@
-// Stage C clipboard codec tests: pure encode/decode in v1's JSON format.
-// Roundtrip fidelity (text, order, fold, task), v1 payload compatibility,
-// the copyNodes multi envelope, and graceful rejection of foreign clipboard
-// content (never throws — bad input is just "not ours").
+// Clipboard codec tests. Since alpha.13 the WRITE format is tab-indented
+// markdown bullets (readable everywhere); DECODE accepts bullets, plain
+// text, headings — and still v1's JSON payloads for backward compat.
+// Fold state is deliberately NOT clipboard-worthy: collapsed is dropped
+// on a markdown roundtrip (it survives only legacy JSON pastes).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -21,16 +22,25 @@ function subtree(): MindNode {
   return a;
 }
 
+/** Structure signature; `collapsed` intentionally excluded (not carried
+ *  by the markdown clipboard format). */
 function shape(n: MindNode): unknown {
   return {
     text: n.text,
     task: n.task,
-    collapsed: n.collapsed,
     children: n.children.map(shape),
   };
 }
 
-test("single subtree roundtrips through the copyNode format", () => {
+test("copy is markdown bullets: tabs for depth, checkboxes for tasks", () => {
+  const payload = encodeSubtrees([subtree()]);
+  assert.equal(
+    payload,
+    "- A **bold** [[link]]\n\t- [ ] A1\n\t- A2\n\t\t- [x] hidden child"
+  );
+});
+
+test("single subtree roundtrips through markdown bullets", () => {
   const original = subtree();
   const decoded = decodeClipboard(encodeSubtrees([original]));
   assert.ok(decoded);
@@ -38,18 +48,62 @@ test("single subtree roundtrips through the copyNode format", () => {
   assert.deepEqual(shape(decoded[0]), shape(original));
   // Fresh session ids — pasted nodes are new nodes.
   assert.notEqual(decoded[0].id, original.id);
+  // Detached: ready for AddNodeCommand.
+  assert.equal(decoded[0].parent, null);
 });
 
-test("multiple subtrees use the copyNodes envelope and keep order", () => {
+test("multiple subtrees keep their order", () => {
   const one = subtree();
   const two = createNode("standalone");
-  const payload = encodeSubtrees([one, two]);
-  assert.equal(JSON.parse(payload).type, "copyNodes");
-  const decoded = decodeClipboard(payload);
+  const decoded = decodeClipboard(encodeSubtrees([one, two]));
   assert.ok(decoded);
   assert.equal(decoded.length, 2);
   assert.deepEqual(shape(decoded[0]), shape(one));
   assert.equal(decoded[1].text, "standalone");
+});
+
+test("a fence node survives the clipboard byte-exact", () => {
+  const fenceText = "```js\nif (x) {\n  y()\n}\n```";
+  const parent = createNode("code");
+  attachChild(parent, createNode(fenceText), 0);
+  const decoded = decodeClipboard(encodeSubtrees([parent]));
+  assert.ok(decoded);
+  assert.equal(decoded[0].children[0].text, fenceText);
+});
+
+test("external 2-space-indented bullet list pastes as a nested subtree", () => {
+  // What another note / a ChatGPT answer typically looks like.
+  const decoded = decodeClipboard(
+    "- Groceries\n  - [ ] Milk\n  - [x] Bread\n- Errands\n  - Post office"
+  );
+  assert.ok(decoded);
+  assert.equal(decoded.length, 2);
+  assert.equal(decoded[0].text, "Groceries");
+  assert.equal(decoded[0].children[0].text, "Milk");
+  assert.equal(decoded[0].children[0].task, "todo");
+  assert.equal(decoded[0].children[1].task, "done");
+  assert.equal(decoded[1].children[0].text, "Post office");
+});
+
+test("plain lines paste as sibling nodes; blank lines carry nothing", () => {
+  const decoded = decodeClipboard("first\n\nsecond\nthird");
+  assert.ok(decoded);
+  assert.deepEqual(
+    decoded.map((n) => n.text),
+    ["first", "second", "third"]
+  );
+});
+
+test("an outline with its own H1 pastes as one subtree", () => {
+  const decoded = decodeClipboard("# Title\n- a\n- b");
+  assert.ok(decoded);
+  assert.equal(decoded.length, 1);
+  assert.equal(decoded[0].text, "Title");
+  assert.equal(decoded[0].parent, null);
+  assert.deepEqual(
+    decoded[0].children.map((n) => n.text),
+    ["a", "b"]
+  );
 });
 
 test("v1 payloads (no taskState field) decode with parent links intact", () => {
@@ -68,18 +122,37 @@ test("v1 payloads (no taskState field) decode with parent links intact", () => {
   assert.equal(root.text, "Parent");
   assert.equal(root.task, "none");
   assert.equal(root.children[0].text, "Child");
-  assert.equal(root.children[0].collapsed, true);
+  assert.equal(root.children[0].collapsed, true); // legacy JSON keeps fold
   assert.equal(root.children[0].children[0].text, "Grandchild");
   assert.equal(root.children[0].children[0].parent, root.children[0]);
 });
 
-test("foreign clipboard content is rejected, never thrown", () => {
+test("v2 copyNodes JSON envelope still decodes (pre-alpha.13 copies)", () => {
+  const payload = JSON.stringify({
+    type: "copyNodes",
+    subtrees: [
+      { type: "copyNode", text: [{ id: "a", text: "One", pid: null, isExpand: true }] },
+      { type: "copyNode", text: [{ id: "b", text: "Two", pid: null, isExpand: true }] },
+    ],
+  });
+  const decoded = decodeClipboard(payload);
+  assert.ok(decoded);
+  assert.deepEqual(
+    decoded.map((n) => n.text),
+    ["One", "Two"]
+  );
+});
+
+test("non-payload JSON falls through to plain text, never throws", () => {
+  const decoded = decodeClipboard('{"type":"something-else"}');
+  assert.ok(decoded);
+  assert.equal(decoded.length, 1);
+  assert.equal(decoded[0].text, '{"type":"something-else"}');
+});
+
+test("empty and blank clipboards decode to null", () => {
   assert.equal(decodeClipboard(""), null);
-  assert.equal(decodeClipboard("plain text"), null);
-  assert.equal(decodeClipboard("{not json"), null);
-  assert.equal(decodeClipboard('{"type":"something-else"}'), null);
-  assert.equal(decodeClipboard('{"type":"copyNode","text":"oops"}'), null);
-  assert.equal(decodeClipboard('{"type":"copyNodes","subtrees":[{}]}'), null);
+  assert.equal(decodeClipboard("   \n\n  "), null);
 });
 
 test("encoding nothing yields an empty payload", () => {

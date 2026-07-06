@@ -1,14 +1,18 @@
-// Clipboard codec (design §1 Stage C): copy/cut/paste subtrees as JSON in
-// v1's clipboard format, kept for cross-compatibility with v0.5.47:
-//   single  {type:'copyNode',  text:[{id,text,pid,isExpand,note}, …]}
-//   multi   {type:'copyNodes', subtrees:[<copyNode payloads>, …]}
-// Pure encode/decode only — the controller talks to navigator.clipboard.
-// v2 additionally writes/reads a `taskState` field per entry (v1 ignores it;
-// v1 payloads simply paste without task state, exactly like v1 itself).
+// Clipboard codec: subtrees are COPIED as tab-indented markdown bullet
+// lines — readable when pasted into any note, email, or chat, and parsed
+// back into a full subtree (structure + task checkboxes) when pasted into
+// a mindmap. PASTE additionally understands:
+//   - v1's JSON payloads ({type:'copyNode'/'copyNodes'}) for backward
+//     compatibility with old copies and the retired v1 plugin (decode
+//     only — never written anymore),
+//   - any outline-ish plain text (bullets with tab/space indents, plain
+//     lines, headings), via the same parser that reads mindmap files.
+// Pure encode/decode only — the controller talks to the clipboard APIs.
 
 import type { MindNode, TaskState } from "../model/types";
-import { createNode, newId } from "../model/tree";
-import { normalizeBulletText } from "../model/parse";
+import { createNode } from "../model/tree";
+import { normalizeBulletText, parseBody } from "../model/parse";
+import { serializeSubtreesAsBullets } from "../model/serialize";
 
 interface ClipboardEntry {
   id: string;
@@ -19,50 +23,13 @@ interface ClipboardEntry {
   taskState?: "todo" | "done";
 }
 
-interface CopyNodePayload {
-  type: "copyNode";
-  text: ClipboardEntry[];
-}
-
-interface CopyNodesPayload {
-  type: "copyNodes";
-  subtrees: CopyNodePayload[];
-}
-
-/** Flatten one subtree into v1's id/pid entry list (fresh ids, like v1). */
-function flatten(node: MindNode): ClipboardEntry[] {
-  const entries: ClipboardEntry[] = [];
-  const visit = (n: MindNode, pid: string | null): void => {
-    const id = newId();
-    entries.push({
-      id,
-      text: n.text,
-      pid,
-      isExpand: !n.collapsed,
-      taskState: n.task === "none" ? undefined : n.task,
-    });
-    for (const child of n.children) visit(child, id);
-  };
-  visit(node, null);
-  return entries;
-}
-
-/** Encode subtrees for the clipboard. One node → copyNode, several →
- *  copyNodes (callers prune to top ancestors first). "" when empty. */
+/** Encode subtrees for the clipboard as markdown bullet lines. "" when
+ *  empty (callers prune to top ancestors first). */
 export function encodeSubtrees(nodes: MindNode[]): string {
-  if (nodes.length === 0) return "";
-  if (nodes.length === 1) {
-    const payload: CopyNodePayload = { type: "copyNode", text: flatten(nodes[0]) };
-    return JSON.stringify(payload);
-  }
-  const payload: CopyNodesPayload = {
-    type: "copyNodes",
-    subtrees: nodes.map((n) => ({ type: "copyNode" as const, text: flatten(n) })),
-  };
-  return JSON.stringify(payload);
+  return serializeSubtreesAsBullets(nodes);
 }
 
-/** Rebuild one entry list into a detached subtree (fresh session ids). */
+/** Rebuild one v1 entry list into a detached subtree (fresh session ids). */
 function rebuild(entries: ClipboardEntry[]): MindNode | null {
   if (!Array.isArray(entries) || entries.length === 0) return null;
   const byOld = new Map<string, MindNode>();
@@ -91,15 +58,32 @@ function rebuild(entries: ClipboardEntry[]): MindNode | null {
   return root;
 }
 
-/** Decode a clipboard string into detached subtrees, or null when the text
- *  is not a Mindsidian payload (never throws — bad JSON is just "not ours"). */
+/** Decode plain text into detached subtrees via the file parser: bullet
+ *  lists (tab or space indents), headings, bare lines — everything the
+ *  parser accepts in a body. Null when there is no content. */
+function decodeMarkdown(text: string): MindNode[] | null {
+  if (!text.trim()) return null;
+  const { root, synthesizedRoot } = parseBody(text, "");
+  if (!synthesizedRoot) {
+    // The text carried its own H1 → the whole parse IS one subtree.
+    root.parent = null;
+    return [root];
+  }
+  if (root.children.length === 0) return null;
+  for (const child of root.children) child.parent = null;
+  return root.children;
+}
+
+/** Decode a clipboard string into detached subtrees: v1 JSON payloads
+ *  first, then markdown/plain text. Null only for empty/blank clipboards
+ *  (never throws — non-payload JSON falls through as plain text). */
 export function decodeClipboard(text: string): MindNode[] | null {
   if (!text) return null;
-  let json: unknown;
+  let json: unknown = null;
   try {
     json = JSON.parse(text);
   } catch {
-    return null;
+    // not JSON → plain text / markdown
   }
   const payload = json as {
     type?: unknown;
@@ -112,11 +96,11 @@ export function decodeClipboard(text: string): MindNode[] | null {
         Array.isArray(sub?.text) ? rebuild(sub.text as ClipboardEntry[]) : null
       )
       .filter((n): n is MindNode => n !== null);
-    return subtrees.length > 0 ? subtrees : null;
+    if (subtrees.length > 0) return subtrees;
   }
   if (payload?.type === "copyNode" && Array.isArray(payload.text)) {
     const tree = rebuild(payload.text as ClipboardEntry[]);
-    return tree ? [tree] : null;
+    if (tree) return [tree];
   }
-  return null;
+  return decodeMarkdown(text);
 }

@@ -33,6 +33,74 @@ function needsBulletForm(node: MindNode): boolean {
   );
 }
 
+/** One node in bullet form (indent, "- ", task prefix, fence/multi-line
+ *  rules), as the emitted lines. Shared by the body serializer and the
+ *  clipboard encoder so both emit the exact same shape. */
+function emitBulletLines(node: MindNode, depth: number, ending: string): string {
+  const indent = "\t".repeat(Math.max(0, depth));
+  const taskPrefix =
+    node.task === "todo" ? "[ ] " : node.task === "done" ? "[x] " : "";
+  const text = node.text.trim();
+  let md = "";
+
+  if (text === "") {
+    // Empty node → bare "-" (contract §5). A fold marker cannot ride
+    // on an empty bullet without becoming text, so it is not emitted.
+    md += `${indent}-\n`;
+  } else if (!text.includes("\n")) {
+    md += `${indent}- ${taskPrefix}${text}${ending}\n`;
+  } else if (isPureFence(node.text)) {
+    // Code fence: empty bullet, then the fence lines two spaces
+    // deeper, byte-exact, wrapped in blank lines (contract §5 / E10).
+    const lines = node.text.split("\n");
+    // An unclosed fence is closed here — otherwise it would swallow
+    // every following line on reparse and block all saves. The closer
+    // mirrors the opener (character AND length: ~~~ or ````).
+    const open = fenceOpen(lines[0]) as NonNullable<ReturnType<typeof fenceOpen>>;
+    const closed = lines.length > 1 && fenceCloses(lines[lines.length - 1], open);
+    if (!closed) lines.push(open.char.repeat(open.len));
+    md += `\n${indent}-\n`;
+    lines.forEach((line, i) => {
+      md += `${indent}  ${line}${i === lines.length - 1 ? ending : ""}\n`;
+    });
+    md += "\n";
+  } else {
+    // Multi-line text: one sibling bullet per line — the documented
+    // E9 normalization. No line is ever dropped: blank lines become
+    // bare "-" empty bullets. Task prefix rides on the first content
+    // line, the fold marker on the last content line. (Text that
+    // merely starts with ``` but is not one pure fence also lands
+    // here — each line becomes literal bullet text, never a fence.)
+    const lines = text.split("\n").map((l) => l.trim());
+    const lastContent = lines.reduce((acc, l, i) => (l !== "" ? i : acc), -1);
+    let first = true;
+    lines.forEach((line, i) => {
+      if (line === "") {
+        md += `${indent}-\n`;
+      } else {
+        const prefix = first ? taskPrefix : "";
+        first = false;
+        md += `${indent}- ${prefix}${line}${i === lastContent ? ending : ""}\n`;
+      }
+    });
+  }
+  return md;
+}
+
+/** Subtrees → tab-indented markdown bullet lines: the clipboard format.
+ *  Fold markers are never emitted (fold state is not clipboard-worthy);
+ *  heading-depth nodes come out as bullets too — heading-ness is
+ *  positional and restored by where the paste lands. */
+export function serializeSubtreesAsBullets(nodes: MindNode[]): string {
+  let md = "";
+  const visit = (n: MindNode, depth: number): void => {
+    md += emitBulletLines(n, depth, "");
+    for (const c of n.children) visit(c, depth + 1);
+  };
+  for (const n of nodes) visit(n, 0);
+  return md.trim();
+}
+
 /** Serialize a tree to a markdown body (no frontmatter, no prefix). */
 export function serializeBody(
   root: MindNode,
@@ -72,52 +140,7 @@ export function serializeBody(
   };
 
   const emitBullet = (node: MindNode, depth: number, ending: string): void => {
-    const indent = "\t".repeat(Math.max(0, depth));
-    const taskPrefix =
-      node.task === "todo" ? "[ ] " : node.task === "done" ? "[x] " : "";
-    const text = node.text.trim();
-
-    if (text === "") {
-      // Empty node → bare "-" (contract §5). A fold marker cannot ride
-      // on an empty bullet without becoming text, so it is not emitted.
-      md += `${indent}-\n`;
-    } else if (!text.includes("\n")) {
-      md += `${indent}- ${taskPrefix}${text}${ending}\n`;
-    } else if (isPureFence(node.text)) {
-      // Code fence: empty bullet, then the fence lines two spaces
-      // deeper, byte-exact, wrapped in blank lines (contract §5 / E10).
-      const lines = node.text.split("\n");
-      // An unclosed fence is closed here — otherwise it would swallow
-      // every following line on reparse and block all saves. The closer
-      // mirrors the opener (character AND length: ~~~ or ````).
-      const open = fenceOpen(lines[0]) as NonNullable<ReturnType<typeof fenceOpen>>;
-      const closed = lines.length > 1 && fenceCloses(lines[lines.length - 1], open);
-      if (!closed) lines.push(open.char.repeat(open.len));
-      md += `\n${indent}-\n`;
-      lines.forEach((line, i) => {
-        md += `${indent}  ${line}${i === lines.length - 1 ? ending : ""}\n`;
-      });
-      md += "\n";
-    } else {
-      // Multi-line text: one sibling bullet per line — the documented
-      // E9 normalization. No line is ever dropped: blank lines become
-      // bare "-" empty bullets. Task prefix rides on the first content
-      // line, the fold marker on the last content line. (Text that
-      // merely starts with ``` but is not one pure fence also lands
-      // here — each line becomes literal bullet text, never a fence.)
-      const lines = text.split("\n").map((l) => l.trim());
-      const lastContent = lines.reduce((acc, l, i) => (l !== "" ? i : acc), -1);
-      let first = true;
-      lines.forEach((line, i) => {
-        if (line === "") {
-          md += `${indent}-\n`;
-        } else {
-          const prefix = first ? taskPrefix : "";
-          first = false;
-          md += `${indent}- ${prefix}${line}${i === lastContent ? ending : ""}\n`;
-        }
-      });
-    }
+    md += emitBulletLines(node, depth, ending);
   };
 
   // bulletDepth === null → the node may still be a heading (level
