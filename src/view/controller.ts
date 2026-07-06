@@ -212,11 +212,20 @@ export class MindmapController {
   /** Start inline editing. Synchronous so the iOS keyboard opens in-gesture. */
   beginEdit(id: string, options?: { selectAll?: boolean }): void {
     if (this.editor.editingId === id) return;
-    if (this.editor.isEditing) this.commitEdit();
     const node = this.ctx.index.get(id);
     const nodeEl = this.renderer.getElement(id);
     const contentEl = this.renderer.getContentElement(id);
-    if (!node || !nodeEl || !contentEl) return;
+    if (!node || !nodeEl || !contentEl) {
+      if (this.editor.isEditing) this.commitEdit();
+      return;
+    }
+    if (this.editor.isEditing) {
+      // Edit-to-edit switch: hand the keyboard over BEFORE the commit
+      // tears the old editor down (see Editor.prepareHandoff), and skip
+      // the anchor refocus — the target already owns the focus.
+      this.editor.prepareHandoff(contentEl);
+      this.commitEdit({ keepDomFocus: true });
+    }
     this.selection.select(id);
     this.applySelectionClasses();
     this.editor.begin(node, nodeEl, contentEl, options);
@@ -253,8 +262,10 @@ export class MindmapController {
     this.viewport.animateTo({ x: tx + dx, y: ty + dy, scale }, 160);
   }
 
-  /** Commit the in-flight edit (if any) as one history step. */
-  commitEdit(): void {
+  /** Commit the in-flight edit (if any) as one history step.
+   *  `keepDomFocus` (edit handoff): do not refocus the keyboard anchor —
+   *  the next edit target already holds the focus. */
+  commitEdit(opts?: { keepDomFocus?: boolean }): void {
     const result = this.editor.commit();
     if (!result) return;
     this.renderer.invalidateNode(result.nodeId);
@@ -300,7 +311,14 @@ export class MindmapController {
     ) {
       const parentId = edited.parent.id;
       this.execute(new RemoveNodeCommand(edited.id));
-      this.select(parentId);
+      if (opts?.keepDomFocus) {
+        // Handoff in flight — selecting via select() would refocus the
+        // keyboard anchor and blink the iOS keyboard away again.
+        this.selection.select(parentId);
+        this.applySelectionClasses();
+      } else {
+        this.select(parentId);
+      }
       return;
     }
     if (newText !== null) {
@@ -308,7 +326,7 @@ export class MindmapController {
     } else {
       void this.refresh();
     }
-    this.focusKeyboard();
+    if (!opts?.keepDomFocus) this.focusKeyboard();
   }
 
   /** Cancel the in-flight edit — original text stays, nothing in history. */

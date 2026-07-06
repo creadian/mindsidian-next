@@ -402,3 +402,18 @@ his value proves universal.
   pinch frame (style invalidation across all nodes) → quantized to 5%
   steps, written on change only. (Frontmatter zoom write ruled out — it
   only happens on close.)
+
+---
+
+## 2026-07-06 — alpha.8: keyboard handoff (blink persisted after alpha.7)
+
+The sync blur-rescue was not enough: on an edit-to-edit switch (add
+sibling/child from the bar while typing) focus made two NON-editable
+stops — body (contenteditable teardown) and the mn-focus-anchor
+(commitEdit's focusKeyboard) — and any such stop makes iOS dismiss and
+re-summon the keyboard. Now: Editor.prepareHandoff makes the TARGET
+editable and focused BEFORE the old edit commits, commitEdit gains
+keepDomFocus (skips the anchor refocus, incl. the empty-node-removal
+branch), so focus travels editable-to-editable with zero gaps.
+If the blink STILL persists on-device, next lever: a persistent hidden
+input as keyboard holder (v1-style) — do not retry micro-timing fixes.

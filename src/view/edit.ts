@@ -98,6 +98,21 @@ export class NodeEditor {
   }
 
   /**
+   * Keyboard handoff (iOS): before committing the CURRENT edit to switch
+   * to another node, make the target editable and focused FIRST, so focus
+   * travels editable→editable with no stop on body or the focus anchor —
+   * any non-editable stop makes iOS dismiss and re-summon the keyboard
+   * (visible blink when adding a sibling/child from the mobile bar).
+   */
+  prepareHandoff(contentEl: HTMLElement): void {
+    contentEl.setAttribute(
+      "contenteditable",
+      supportsPlainTextOnly() ? "plaintext-only" : "true"
+    );
+    contentEl.focus({ preventScroll: true });
+  }
+
+  /**
    * End editing and report the result. Newlines are flattened to spaces —
    * heading nodes must never contain them (Stage A rule) and multi-line
    * bullet creation is deferred, so one policy covers every node safely.
