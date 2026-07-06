@@ -482,6 +482,13 @@
   bottom: 8px;
 }
 
+/* Landscape + keyboard (JS-set mn-compact): only the add-sibling and
+   add-child buttons remain — the little space above the keyboard belongs
+   to the node being edited. */
+.mn-mobile-bar.mn-compact .mn-mobile-btn:not(.mn-compact-keep) {
+  display: none;
+}
+
 /* Delete button armed state (tap-again-to-confirm). */
 .mn-mobile-btn.mn-confirm {
   background: var(--background-modifier-error, #e93147);

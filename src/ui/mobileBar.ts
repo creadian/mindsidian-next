@@ -13,6 +13,9 @@ interface BarButton {
   icon: string;
   label: string;
   hideOnRoot?: boolean;
+  /** Survives compact mode (landscape + keyboard: only the add buttons
+   *  stay — owner request 2026-07-06, screen estate is scarce there). */
+  compact?: boolean;
   action: () => void;
 }
 
@@ -30,8 +33,8 @@ export class MobileActionBar {
     this.el.className = "mn-mobile-bar";
 
     const specs: BarButton[] = [
-      { icon: "↩", label: "Add sibling", hideOnRoot: true, action: () => this.c.addSiblingBelow() },
-      { icon: "→", label: "Add child", action: () => this.c.addChild() },
+      { icon: "↩", label: "Add sibling", hideOnRoot: true, compact: true, action: () => this.c.addSiblingBelow() },
+      { icon: "→", label: "Add child", compact: true, action: () => this.c.addChild() },
       { icon: "↶", label: "Undo", action: () => this.c.undo() },
       { icon: "↷", label: "Redo", action: () => this.c.redo() },
       // Delete stays visible during multi-select (owner wishlist #7).
@@ -42,6 +45,7 @@ export class MobileActionBar {
     for (const spec of specs) {
       const btn = doc.createElement("button");
       btn.className = "mn-mobile-btn";
+      if (spec.compact) btn.classList.add("mn-compact-keep");
       btn.textContent = spec.icon;
       btn.setAttribute("aria-label", spec.label);
       // pointerdown + preventDefault: act inside the gesture without
@@ -206,5 +210,13 @@ export class MobileActionBar {
     // Compose via CSS var — writing style.transform here clobbered the
     // scale(var(--mn-bar-scale)) rule, so the size setting never worked.
     this.el.style.setProperty("--mn-bar-lift", `${-lift}px`);
+
+    // Landscape + keyboard: barely any screen left above the keyboard —
+    // shrink to the two add buttons (mn-compact-keep) so the bar doesn't
+    // sit on top of the node being edited. Evaluated here (not only in
+    // the focus handler) because a rotation can happen mid-edit.
+    const kbUp = this.el.classList.contains("mn-kb-up");
+    const landscape = vv.width > vv.height;
+    this.el.classList.toggle("mn-compact", kbUp && landscape);
   }
 }
