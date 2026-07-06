@@ -387,3 +387,18 @@ his value proves universal.
   navbar is hidden during typing, so the offset must not apply).
 - **Delete confirm**: extended from branches to EVERY delete (owner
   request); armed state disarms on selection change.
+
+---
+
+## 2026-07-06 — Feedback round 4 (alpha.7): three on-device glitches
+
+- **Bar off-screen left** (only last icons visible): left:50% + the
+  separate CSS `translate` property could be dropped by iOS WebKit under
+  compositor pressure → inset centering (left/right 0 + margin auto).
+- **Keyboard blink on add-from-bar**: Obsidian's scope-manager blur was
+  rescued only via rAF → one unfocused frame → iOS dismissed/re-summoned
+  the keyboard. Now synchronous refocus inside the blur, rAF fallback.
+- **Webview crash flash on long zooms**: --mn-scale was rewritten every
+  pinch frame (style invalidation across all nodes) → quantized to 5%
+  steps, written on change only. (Frontmatter zoom write ruled out — it
+  only happens on close.)
