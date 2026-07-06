@@ -7,13 +7,14 @@ import type { MindmapController } from "../view/controller";
 
 /** Implemented in Stage D with FuzzySuggestModal over the vault's md files. */
 export interface WikilinkPicker {
-  /** Open the picker; calls back with the chosen file's basename. */
-  open(onPick: (basename: string) => void): void;
+  /** Open the picker; calls back with the chosen file's resolved linktext
+   *  (fileToLinktext — unambiguous for duplicate basenames). */
+  open(onPick: (linktext: string) => void): void;
 }
 
-/** Pure: build the `[[basename]]` snippet for insertion. */
-export function wikilinkSnippet(basename: string): string {
-  return `[[${basename}]]`;
+/** Pure: build the `[[linktext]]` snippet for insertion. */
+export function wikilinkSnippet(linktext: string): string {
+  return `[[${linktext}]]`;
 }
 
 // ---- Inline "[[" autocomplete (pure text half; DOM/obsidian wiring lives
@@ -97,8 +98,8 @@ export function insertWikilink(
   controller: MindmapController,
   picker: WikilinkPicker
 ): void {
-  picker.open((basename) => {
-    const snippet = wikilinkSnippet(basename);
+  picker.open((linktext) => {
+    const snippet = wikilinkSnippet(linktext);
     if (controller.editor.insertText(snippet)) return; // in-flight edit
     const id = controller.selection.primary;
     if (!id) return;

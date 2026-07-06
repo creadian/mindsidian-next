@@ -509,7 +509,10 @@ export class MindmapView extends TextFileView {
   /** Wikilink insertion via the vault-wide fuzzy picker. */
   insertWikilink(): void {
     if (!this.controller) return;
-    insertWikilink(this.controller, new WikilinkModal(this.app));
+    insertWikilink(
+      this.controller,
+      new WikilinkModal(this.app, () => this.file?.path ?? "")
+    );
   }
 
   /** Zoom % to write on close, or null when nothing changed / not allowed. */
