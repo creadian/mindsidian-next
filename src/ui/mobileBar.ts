@@ -31,6 +31,21 @@ export class MobileActionBar {
   /** Current keyboard lift in px (kept as state so the post-layout
    *  verification can adjust it against the bar's MEASURED position). */
   private lift = 0;
+  /** Native keyboard height from Capacitor window events (Obsidian's
+   *  mobile shell). THE decisive signal in landscape, where iOS neither
+   *  resizes the window nor shrinks the visualViewport for the keyboard
+   *  (diagnosed on-device 2026-07-06: vv claimed full height while the
+   *  keyboard covered the bar). 0 = no keyboard / no such events. */
+  private nativeKbHeight = 0;
+  private kbShowHandler = (e: Event): void => {
+    const h = (e as { keyboardHeight?: unknown }).keyboardHeight;
+    this.nativeKbHeight = typeof h === "number" && h > 0 ? h : 0;
+    this.scheduleSettle();
+  };
+  private kbHideHandler = (): void => {
+    this.nativeKbHeight = 0;
+    this.scheduleSettle();
+  };
   private diagnostics: () => boolean;
   private diagEl: HTMLElement | null = null;
 
@@ -104,6 +119,11 @@ export class MobileActionBar {
     // and scheduleSettle() re-measures until iOS has settled.
     doc.defaultView?.addEventListener("resize", this.viewportHandler);
     doc.defaultView?.addEventListener("orientationchange", this.viewportHandler);
+    // Native keyboard height (Capacitor dispatches these on window).
+    doc.defaultView?.addEventListener("keyboardWillShow", this.kbShowHandler);
+    doc.defaultView?.addEventListener("keyboardDidShow", this.kbShowHandler);
+    doc.defaultView?.addEventListener("keyboardWillHide", this.kbHideHandler);
+    doc.defaultView?.addEventListener("keyboardDidHide", this.kbHideHandler);
     // Keyboard tracking: iOS RESIZES the whole webview when the keyboard
     // opens, so the visualViewport "covered" math reads 0 there — the
     // container's bottom already IS the keyboard's top. Track typing
@@ -136,6 +156,10 @@ export class MobileActionBar {
     vv?.removeEventListener("scroll", this.viewportHandler);
     win?.removeEventListener("resize", this.viewportHandler);
     win?.removeEventListener("orientationchange", this.viewportHandler);
+    win?.removeEventListener("keyboardWillShow", this.kbShowHandler);
+    win?.removeEventListener("keyboardDidShow", this.kbShowHandler);
+    win?.removeEventListener("keyboardWillHide", this.kbHideHandler);
+    win?.removeEventListener("keyboardDidHide", this.kbHideHandler);
     for (const id of this.settleTimers) win?.clearTimeout(id);
     this.settleTimers = [];
     this.c.containerEl.removeEventListener("focusin", this.focusHandler);
@@ -211,7 +235,7 @@ export class MobileActionBar {
     // left the bar stranded on a stale mismatch (landscape bug 2026-07-06).
     // getBoundingClientRect and the vv metrics are both read at call time.
     const containerBottom = this.c.containerEl.getBoundingClientRect().bottom;
-    const covered = containerBottom - (vv.offsetTop + vv.height);
+    const covered = containerBottom - this.visibleBottom();
     // Keyboard up: sit DIRECTLY above it (small gap). The configured
     // bottom offset exists to clear Obsidian's navbar — which iOS hides
     // while typing, so stacking offset + keyboard height put the bar
@@ -245,6 +269,31 @@ export class MobileActionBar {
     this.el.style.setProperty("--mn-bar-lift", `${-lift}px`);
   }
 
+  /** The TRUE bottom of the usable screen area, in layout coordinates:
+   *  the most conservative of three independent keyboard signals. On
+   *  iOS landscape the visualViewport alone is dishonest (claims full
+   *  height with the keyboard up — on-device diagnosis 2026-07-06), so:
+   *  1. visualViewport bottom (honest in portrait),
+   *  2. window height minus the NATIVE keyboard height (Capacitor
+   *     keyboardWillShow events — honest everywhere, when present),
+   *  3. the top of Obsidian's own mobile toolbar, which the app parks
+   *     directly above the keyboard (when visible). */
+  private visibleBottom(): number {
+    const win = this.el.ownerDocument.defaultView;
+    const vv = win?.visualViewport;
+    if (!win || !vv) return Number.POSITIVE_INFINITY;
+    let bottom = vv.offsetTop + vv.height;
+    if (this.nativeKbHeight > 0) {
+      bottom = Math.min(bottom, win.innerHeight - this.nativeKbHeight);
+    }
+    const toolbar = this.el.ownerDocument.querySelector(".mobile-toolbar");
+    if (toolbar instanceof HTMLElement && toolbar.offsetParent !== null) {
+      const top = toolbar.getBoundingClientRect().top;
+      if (top > 0) bottom = Math.min(bottom, top);
+    }
+    return bottom;
+  }
+
   /** Measure where the bar ACTUALLY ended up; if it pokes below the
    *  visual viewport (under the keyboard) or above the container, adjust
    *  the lift by the measured error. Runs once per position update; the
@@ -256,11 +305,11 @@ export class MobileActionBar {
     if (!this.el.classList.contains("mn-kb-up")) return; // only while typing
     const rect = this.el.getBoundingClientRect();
     if (rect.height === 0) return; // display:none / detached — nothing to fix
-    const vvBottom = vv.offsetTop + vv.height;
+    const visBottom = this.visibleBottom();
     const containerTop = this.c.containerEl.getBoundingClientRect().top;
     let corrected = this.lift;
     // Poking below the keyboard line → push up by the measured overshoot.
-    const overshoot = rect.bottom + KEYBOARD_GAP - vvBottom;
+    const overshoot = rect.bottom + KEYBOARD_GAP - visBottom;
     if (overshoot > 1) corrected += overshoot;
     // Pushed above the visible/container top → bring it back down, but
     // never below the keyboard line again (keyboard wins when both bind).
@@ -269,7 +318,7 @@ export class MobileActionBar {
       corrected = Math.min(corrected, this.lift + rect.top - maxTop);
     }
     if (Math.abs(corrected - this.lift) > 1) this.applyLift(Math.max(0, corrected));
-    this.updateDiagnostics(rect, vvBottom);
+    this.updateDiagnostics(rect, visBottom);
   }
 
   /** Optional on-device overlay with the live numbers (settings toggle).
@@ -290,10 +339,16 @@ export class MobileActionBar {
       this.c.containerEl.appendChild(this.diagEl);
     }
     const cr = this.c.containerEl.getBoundingClientRect();
+    const toolbar = this.el.ownerDocument.querySelector(".mobile-toolbar");
+    const mtbTop =
+      toolbar instanceof HTMLElement && toolbar.offsetParent !== null
+        ? Math.round(toolbar.getBoundingClientRect().top)
+        : "none";
     this.diagEl.textContent =
       `win ${win.innerWidth}x${win.innerHeight} | ` +
-      `vv ${Math.round(vv.width)}x${Math.round(vv.height)} top${Math.round(vv.offsetTop)} ` +
-      `bot${Math.round(vvBottom)} | cont ${Math.round(cr.top)}..${Math.round(cr.bottom)} | ` +
+      `vv ${Math.round(vv.width)}x${Math.round(vv.height)} top${Math.round(vv.offsetTop)} | ` +
+      `useBot${Math.round(vvBottom)} natKB${Math.round(this.nativeKbHeight)} mtb${mtbTop} | ` +
+      `cont ${Math.round(cr.top)}..${Math.round(cr.bottom)} | ` +
       `bar ${Math.round(barRect.top)}..${Math.round(barRect.bottom)} lift${Math.round(this.lift)} | ` +
       `${this.el.classList.contains("mn-kb-up") ? "KB" : "–"} ` +
       `${this.el.classList.contains("mn-compact") ? "CMP" : ""}`;
