@@ -418,6 +418,13 @@ export class MindmapView extends TextFileView {
     // Only schedule a disk write when the serialization actually differs
     // (a fold toggle in non-markdown mode must not touch the file).
     if (this.saveBlocked) return;
+    // Without a committed edit, nothing may reach the disk (contract E12,
+    // same gate as getViewData). A fold toggle in plugin-data/none mode
+    // lands here with hasEdits false — serializing anyway would adopt and
+    // save a normalized text whenever the disk bytes contain anything the
+    // serializer re-emits differently (e.g. legacy fold markers), silently
+    // rewriting a file the user never edited.
+    if (!controller.hasEdits) return;
     const text = serializeDocument(controller.doc, this.modelSettings);
     if (text !== this.data) {
       // Adopt the new text into this.data NOW (after the same self-check
